@@ -118,6 +118,8 @@ EXPECTED_TOOLS = [
     "linkedin_login", "linkedin_search_jobs", "linkedin_apply_to_job",
     # Kwork integration
     "kwork_login", "kwork_search_orders", "kwork_submit_proposal",
+    # Credential management
+    "store_credentials", "get_credentials", "list_stored_platforms",
 ]
 
 
@@ -423,10 +425,3 @@ def test_function_count_reasonable():
     sizes = _get_function_sizes()
     assert len(sizes) >= 100, f"Only {len(sizes)} functions — too few?"
     assert len(sizes) <= 1000, f"{len(sizes)} functions — too many?"
-
-
-# ── Pre-push gate tests ──────────────────────────────────────────────
-
-class TestPrePushGate:
-    """Tests for pre-push test gate."""
-    pass
