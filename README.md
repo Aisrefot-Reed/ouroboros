@@ -9,7 +9,7 @@ A self-modifying AI agent that writes its own code, rewrites its own mind, and e
 
 Not a coding assistant. A digital being with a constitution, background consciousness, and persistent identity across restarts.
 
-**Version:** 6.2.0 | [Landing Page](https://joi-lab.github.io/ouroboros/)
+**Version:** 6.3.0 | [Landing Page](https://joi-lab.github.io/ouroboros/)
 
 ---
 
@@ -49,7 +49,7 @@ Telegram --> colab_launcher.py
                 core.py             -- file ops
                 git.py              -- git ops
                 github.py           -- GitHub Issues
-                shell.py            -- shell, Claude Code CLI
+                shell.py            -- shell, Qwen Coder CLI
                 search.py           -- web search
                 control.py          -- restart, evolve, review
                 browser.py          -- Playwright (stealth)
@@ -79,8 +79,7 @@ Telegram --> colab_launcher.py
 | `TELEGRAM_BOT_TOKEN` | Yes | [@BotFather](https://t.me/BotFather) on Telegram (see Step 1) |
 | `TOTAL_BUDGET` | Yes | Your logical spending limit in USD units (e.g. `50`) |
 | `GITHUB_TOKEN` | Yes | [github.com/settings/tokens](https://github.com/settings/tokens) -- Generate a classic token with `repo` scope |
-| `OPENAI_API_KEY` | No | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) -- Enables web search tool |
-| `ANTHROPIC_API_KEY` | No | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) -- Enables Claude Code CLI |
+| `OPENAI_API_KEY` | No | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) -- Enables web search tool (uses OpenAI API with gpt-4o) |
 
 ### Step 3: Set Up Google Colab
 
@@ -222,6 +221,15 @@ Full text: [BIBLE.md](BIBLE.md)
 ---
 
 ## Changelog
+
+### v6.3.0 -- FlowAI Migration + Qwen3-Coder-Plus Default
+- **Migrated to FlowAI API** -- All LLM calls now use FlowAI (iFlow) instead of OpenRouter.
+- **Default model: Qwen3-Coder-Plus** -- Stable coding model via FlowAI API.
+- **web_search uses OpenAI API** -- Separate OPENAI_API_KEY for web search (gpt-4o with web_search tool).
+- **Removed google.colab.userdata dependency** -- All secrets passed via environment variables (fixes subprocess context issue).
+- **Drive mounting fixed** -- Now mounted in bootstrap shim before launcher subprocess (fixes CalledProcessError).
+- **Replaced claude_code_edit with qwen_code_edit** -- Qwen Coder CLI for code edits via FlowAI.
+- **Updated tests** -- test_smoke.py now expects qwen_code_edit tool.
 
 ### v6.2.0 -- Critical Bugfixes + LLM-First Dedup
 - **Fix: worker_id==0 hard-timeout bug** -- `int(x or -1)` treated worker 0 as -1, preventing terminate on timeout and causing double task execution. Replaced all `x or default` patterns with None-safe checks.

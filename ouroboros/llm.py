@@ -1,7 +1,7 @@
 """
 Ouroboros — LLM client.
 
-The only module that communicates with the LLM API (OpenRouter).
+The only module that communicates with the LLM API (FlowAI / iFlow).
 Contract: chat(), default_model(), available_models(), add_usage().
 """
 

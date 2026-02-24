@@ -1,4 +1,4 @@
-"""Shell tools: run_shell, claude_code_edit."""
+"""Shell tools: run_shell, qwen_code_edit."""
 
 from __future__ import annotations
 
