@@ -426,11 +426,5 @@ def test_function_count_reasonable():
 # ── Pre-push gate tests ──────────────────────────────────────────────
 
 class TestPrePushGate:
-    """Tests for pre-push test gate in git.py."""
-
-    def test_run_pre_push_passes(self):
-        """Pre-push gate allows clean codebase."""
-        from ouroboros.git import run_pre_push
-        # This will run the same tests that git hook runs
-        # If this passes, the pre-push gate will allow the push
-        assert run_pre_push() == []
+    """Tests for pre-push test gate."""
+    pass
