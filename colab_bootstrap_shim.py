@@ -120,6 +120,22 @@ if not drive_path.exists():
 
 print("[boot] Drive mounted successfully")
 
+# Install git hooks from repo
+hooks_source = REPO_DIR / ".git" / "hooks"
+if (REPO_DIR / "scripts" / "install-hooks.sh").exists():
+    print("[boot] Installing git hooks...")
+    subprocess.run(["bash", str(REPO_DIR / "scripts" / "install-hooks.sh")], 
+                   cwd=str(REPO_DIR), check=False)
+elif (hooks_source / "pre-push").exists():
+    print("[boot] Git hooks already installed")
+else:
+    # Copy pre-commit hook template if exists
+    pre_commit_sample = REPO_DIR / ".git" / "hooks" / "pre-push.sample"
+    if pre_commit_sample.exists():
+        import shutil
+        shutil.copy(str(pre_commit_sample), str(hooks_source / "pre-push"))
+        print("[boot] Installed pre-push hook from sample")
+
 # Now launch launcher with better error handling
 launcher_path = REPO_DIR / "colab_launcher.py"
 print(f"[boot] Launching {launcher_path}...")
