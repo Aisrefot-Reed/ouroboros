@@ -151,7 +151,7 @@ def _qwen_code_edit(ctx: ToolContext, prompt: str, cwd: str = "") -> str:
     from ouroboros.tools.git import _acquire_git_lock, _release_git_lock
 
     # Use IFLOW_API_KEY or other relevant key if needed by the CLI
-    api_key = os.environ.get("IFLOW_API_KEY") or os.environ.get("OPENROUTER_API_KEY", "")
+    api_key = os.environ.get("IFLOW_API_KEY", "")
 
     work_dir = str(ctx.repo_dir)
     if cwd and cwd.strip() not in ("", ".", "./"):

@@ -103,21 +103,17 @@ def fetch_openrouter_pricing() -> Dict[str, Tuple[float, float, float]]:
 
 
 class LLMClient:
-    """OpenRouter or iFlow API wrapper. All LLM calls go through this class."""
+    """FlowAI (iFlow) API wrapper. All LLM calls go through this class."""
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
     ):
-        # iFlow priority
-        if os.environ.get("IFLOW_API_KEY"):
-            self._api_key = os.environ["IFLOW_API_KEY"]
-            self._base_url = "https://apis.iflow.cn/v1"
-            log.info("LLMClient: Using iFlow API")
-        else:
-            self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
-            self._base_url = base_url or "https://openrouter.ai/api/v1"
+        # FlowAI / iFlow only
+        self._api_key = api_key or os.environ["IFLOW_API_KEY"]
+        self._base_url = base_url or "https://apis.iflow.cn/v1"
+        log.info("LLMClient: Using FlowAI/iFlow API")
             
         self._client = None
 
@@ -135,27 +131,7 @@ class LLMClient:
         return self._client
 
     def _fetch_generation_cost(self, generation_id: str) -> Optional[float]:
-        """Fetch cost from OpenRouter Generation API as fallback."""
-        try:
-            import requests
-            url = f"{self._base_url.rstrip('/')}/generation?id={generation_id}"
-            resp = requests.get(url, headers={"Authorization": f"Bearer {self._api_key}"}, timeout=5)
-            if resp.status_code == 200:
-                data = resp.json().get("data") or {}
-                cost = data.get("total_cost") or data.get("usage", {}).get("cost")
-                if cost is not None:
-                    return float(cost)
-            # Generation might not be ready yet — retry once after short delay
-            time.sleep(0.5)
-            resp = requests.get(url, headers={"Authorization": f"Bearer {self._api_key}"}, timeout=5)
-            if resp.status_code == 200:
-                data = resp.json().get("data") or {}
-                cost = data.get("total_cost") or data.get("usage", {}).get("cost")
-                if cost is not None:
-                    return float(cost)
-        except Exception:
-            log.debug("Failed to fetch generation cost from OpenRouter", exc_info=True)
-            pass
+        """No-op in FlowAI-only mode; cost is not fetched from external billing APIs."""
         return None
 
     def chat(
@@ -172,16 +148,6 @@ class LLMClient:
         effort = normalize_reasoning_effort(reasoning_effort)
 
         extra_body: Dict[str, Any] = {}
-        
-        # Only use OpenRouter-specific provider pinning if not using iFlow
-        if not os.environ.get("IFLOW_API_KEY"):
-            extra_body["reasoning"] = {"effort": effort, "exclude": True}
-            if model.startswith("anthropic/"):
-                extra_body["provider"] = {
-                    "order": ["Anthropic"],
-                    "allow_fallbacks": False,
-                    "require_parameters": True,
-                }
 
         kwargs: Dict[str, Any] = {
             "model": model,

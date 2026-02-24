@@ -84,34 +84,8 @@ def _get_pricing() -> Dict[str, Tuple[float, float, float]]:
 
 def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int,
                    cached_tokens: int = 0, cache_write_tokens: int = 0) -> float:
-    """Estimate cost from token counts using known pricing. Returns 0 if model unknown."""
-    if os.environ.get("IFLOW_API_KEY"):
-        return 0.0  # iFlow is treated as free or un-tracked for now
-        
-    model_pricing = _get_pricing()
-    # Try exact match first
-    pricing = model_pricing.get(model)
-    if not pricing:
-        # Try longest prefix match
-        best_match = None
-        best_length = 0
-        for key, val in model_pricing.items():
-            if model and model.startswith(key):
-                if len(key) > best_length:
-                    best_match = val
-                    best_length = len(key)
-        pricing = best_match
-    if not pricing:
-        return 0.0
-    input_price, cached_price, output_price = pricing
-    # Non-cached input tokens = prompt_tokens - cached_tokens
-    regular_input = max(0, prompt_tokens - cached_tokens)
-    cost = (
-        regular_input * input_price / 1_000_000
-        + cached_tokens * cached_price / 1_000_000
-        + completion_tokens * output_price / 1_000_000
-    )
-    return round(cost, 6)
+    """Cost estimation is disabled in FlowAI-only mode; always return 0."""
+    return 0.0
 
 READ_ONLY_PARALLEL_TOOLS = frozenset({
     "repo_read", "repo_list",

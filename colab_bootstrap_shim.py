@@ -37,10 +37,8 @@ def export_secret_to_env(name: str, required: bool = False) -> Optional[str]:
 for _name in ("TELEGRAM_BOT_TOKEN", "TOTAL_BUDGET", "GITHUB_TOKEN"):
     export_secret_to_env(_name, required=True)
 
-# API Keys (at least one is required)
-iflow_key = export_secret_to_env("IFLOW_API_KEY", required=False)
-openrouter_key = export_secret_to_env("OPENROUTER_API_KEY", required=False)
-assert iflow_key or openrouter_key, "Missing required secret: IFLOW_API_KEY or OPENROUTER_API_KEY"
+# API Key (FlowAI / iFlow is required; OpenRouter is no longer used)
+iflow_key = export_secret_to_env("IFLOW_API_KEY", required=True)
 
 # Optional secrets
 for _name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY"):

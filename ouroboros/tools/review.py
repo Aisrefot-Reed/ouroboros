@@ -21,7 +21,8 @@ MAX_MODELS = 10
 # Concurrency limit for parallel requests
 CONCURRENCY_LIMIT = 5
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# FlowAI-compatible chat completions endpoint (OpenAI-compatible schema)
+FLOWAI_URL = "https://apis.iflow.cn/v1/chat/completions"
 
 
 def get_tools():
@@ -92,7 +93,7 @@ async def _query_model(client, model, messages, api_key, semaphore):
     async with semaphore:
         try:
             resp = await client.post(
-                OPENROUTER_URL,
+                FLOWAI_URL,
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
@@ -146,9 +147,9 @@ async def _multi_model_review_async(content: str, prompt: str, models: list, ctx
     if len(models) == 0:
         return {"error": "At least one model is required"}
 
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    api_key = os.environ.get("IFLOW_API_KEY", "")
     if not api_key:
-        return {"error": "OPENROUTER_API_KEY not set"}
+        return {"error": "IFLOW_API_KEY not set"}
 
     messages = [
         {"role": "system", "content": prompt},
@@ -213,29 +214,11 @@ def _parse_model_response(model: str, result, headers_dict) -> dict:
         text = f"(unexpected response format: {error_text})"
         verdict = "ERROR"
 
-    # Extract usage for budget tracking
-    usage = result.get("usage", {})
+    # Extract usage for budget tracking (tokens only; cost is treated as 0)
+    usage = result.get("usage", {}) or {}
     prompt_tokens = usage.get("prompt_tokens", 0)
     completion_tokens = usage.get("completion_tokens", 0)
-
-    # Extract cost from response body (preferred) or headers
     cost = 0.0
-    try:
-        # First check response body for usage.cost
-        if "usage" in result and "cost" in result["usage"]:
-            cost = float(result["usage"]["cost"])
-        # Fallback to total_cost field
-        elif "usage" in result and "total_cost" in result["usage"]:
-            cost = float(result["usage"]["total_cost"])
-        # Finally check headers
-        elif headers_dict:
-            # Case-insensitive search for cost header
-            for key, value in headers_dict.items():
-                if key.lower() == "x-openrouter-cost":
-                    cost = float(value)
-                    break
-    except (ValueError, TypeError, KeyError):
-        pass
 
     return {
         "model": model,
