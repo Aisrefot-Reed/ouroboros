@@ -79,7 +79,7 @@ Telegram --> colab_launcher.py
 | `TELEGRAM_BOT_TOKEN` | Yes | [@BotFather](https://t.me/BotFather) on Telegram (see Step 1) |
 | `TOTAL_BUDGET` | Yes | Your logical spending limit in USD units (e.g. `50`) |
 | `GITHUB_TOKEN` | Yes | [github.com/settings/tokens](https://github.com/settings/tokens) -- Generate a classic token with `repo` scope |
-| `OPENAI_API_KEY` | No | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) -- Enables web search tool (uses OpenAI API with gpt-4o) |
+| `OPENAI_API_KEY` | No | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) -- Optional: enables OpenAI web_search fallback (gpt-4o) |
 
 ### Step 3: Set Up Google Colab
 
@@ -184,8 +184,7 @@ Full text: [BIBLE.md](BIBLE.md)
 
 | Variable | Description |
 |----------|-------------|
-| `OPENAI_API_KEY` | Enables the `web_search` tool |
-| `ANTHROPIC_API_KEY` | Enables Claude Code CLI for code editing |
+| `OPENAI_API_KEY` | Optional: enables OpenAI web_search fallback (gpt-4o). Note: web_search works without this key via DuckDuckGo (free). |
 
 ### Optional Configuration (environment variables)
 
@@ -196,7 +195,7 @@ Full text: [BIBLE.md](BIBLE.md)
 | `OUROBOROS_MODEL` | `Kimi-K2-Instruct-0905` | Primary LLM model (via iFlow) |
 | `OUROBOROS_MODEL_CODE` | `Qwen3-Coder-Plus` | Model for code editing tasks |
 | `OUROBOROS_MODEL_LIGHT` | `Qwen3-Coder-30B-A3B-Instruct` | Model for lightweight tasks (dedup, compaction) |
-| `OUROBOROS_WEBSEARCH_MODEL` | `Qwen3-Max` | Model for web search |
+| `OUROBOROS_WEBSEARCH_MODEL` | `gpt-4o` | Model for web search (OpenAI fallback only, primary is DuckDuckGo) |
 | `OUROBOROS_MAX_WORKERS` | `5` | Maximum number of parallel worker processes |
 | `OUROBOROS_BG_BUDGET_PCT` | `10` | Percentage of total budget allocated to background consciousness |
 | `OUROBOROS_MAX_ROUNDS` | `200` | Maximum LLM rounds per task |
