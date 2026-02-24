@@ -120,6 +120,9 @@ EXPECTED_TOOLS = [
     "kwork_login", "kwork_search_orders", "kwork_submit_proposal",
     # Credential management
     "store_credentials", "get_credentials", "list_stored_platforms",
+    # Job and order monitoring
+    "monitor_linkedin_jobs", "monitor_kwork_orders", "schedule_monitoring", 
+    "get_monitoring_status", "stop_monitoring",
 ]
 
 
