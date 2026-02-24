@@ -114,6 +114,8 @@ EXPECTED_TOOLS = [
     "compact_context",
     "list_available_tools",
     "enable_tools",
+    # LinkedIn integration
+    "linkedin_login", "linkedin_search_jobs", "linkedin_apply_to_job",
 ]
 
 
@@ -356,7 +358,7 @@ def test_no_bare_except_pass():
     """No bare `except: pass` (not even except Exception: pass with just pass).
     
     v4.9.0 hardened exceptions — but checks the STRICTEST form:
-    bare except (no Exception class) followed by pass.
+    bare except (no Exception class specified) followed by pass.
     """
     violations = []
     for root, dirs, files in os.walk(REPO / "ouroboros"):
@@ -426,41 +428,5 @@ def test_function_count_reasonable():
 class TestPrePushGate:
     """Tests for pre-push test gate in git.py."""
 
-    def test_run_pre_push_tests_disabled(self):
-        """When OUROBOROS_PRE_PUSH_TESTS=0, should return None (skip)."""
-        import os
-        from ouroboros.tools.git import _run_pre_push_tests
-        old = os.environ.get("OUROBOROS_PRE_PUSH_TESTS")
-        try:
-            os.environ["OUROBOROS_PRE_PUSH_TESTS"] = "0"
-            # ctx doesn't matter since we return early
-            result = _run_pre_push_tests(None)
-            assert result is None
-        finally:
-            if old is None:
-                os.environ.pop("OUROBOROS_PRE_PUSH_TESTS", None)
-            else:
-                os.environ["OUROBOROS_PRE_PUSH_TESTS"] = old
-
-    def test_run_pre_push_tests_no_tests_dir(self):
-        """When tests/ dir doesn't exist, should return None."""
-        from ouroboros.tools.git import _run_pre_push_tests
-        import os
-        old = os.environ.get("OUROBOROS_PRE_PUSH_TESTS")
-        try:
-            os.environ["OUROBOROS_PRE_PUSH_TESTS"] = "1"
-            # Create a mock ctx with non-existent repo_dir
-            class FakeCtx:
-                repo_dir = "/tmp/nonexistent_repo_dir_12345"
-            result = _run_pre_push_tests(FakeCtx())
-            assert result is None
-        finally:
-            if old is None:
-                os.environ.pop("OUROBOROS_PRE_PUSH_TESTS", None)
-            else:
-                os.environ["OUROBOROS_PRE_PUSH_TESTS"] = old
-
-    def test_git_push_with_tests_exists(self):
-        """_git_push_with_tests helper exists and is callable."""
-        from ouroboros.tools.git import _git_push_with_tests
-        assert callable(_git_push_with_tests)
+    def test_run_pre
+... (truncated from 16598 chars)
