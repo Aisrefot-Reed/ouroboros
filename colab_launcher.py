@@ -50,37 +50,19 @@ install_apply_patch()
 # ----------------------------
 # 1) Secrets + runtime config
 # ----------------------------
-from google.colab import userdata  # type: ignore
-# NOTE: drive mounting is handled in colab_bootstrap_shim.py before launching this script
-
-_LEGACY_CFG_WARNED: Set[str] = set()
-
-def _userdata_get(name: str) -> Optional[str]:
-    try:
-        return userdata.get(name)
-    except Exception:
-        return None
+# NOTE: All secrets must be set in environment variables by colab_bootstrap_shim.py
+# google.colab.userdata is NOT available in subprocess context
 
 def get_secret(name: str, default: Optional[str] = None, required: bool = False) -> Optional[str]:
-    v = _userdata_get(name)
-    if v is None or str(v).strip() == "":
-        v = os.environ.get(name, default)
+    """Get secret from environment variable only (userdata not available in subprocess)."""
+    v = os.environ.get(name, default)
     if required:
-        assert v is not None and str(v).strip() != "", f"Missing required secret: {name}"
+        assert v is not None and str(v).strip() != "", f"Missing required secret: {name}. Set it in Colab Secrets or config cell."
     return v
 
-def get_cfg(name: str, default: Optional[str] = None, allow_legacy_secret: bool = False) -> Optional[str]:
-    v = os.environ.get(name)
-    if v is not None and str(v).strip() != "":
-        return v
-    if allow_legacy_secret:
-        legacy = _userdata_get(name)
-        if legacy is not None and str(legacy).strip() != "":
-            if name not in _LEGACY_CFG_WARNED:
-                print(f"[cfg] DEPRECATED: move {name} from Colab Secrets to config cell/env.")
-                _LEGACY_CFG_WARNED.add(name)
-            return legacy
-    return default
+def get_cfg(name: str, default: Optional[str] = None) -> Optional[str]:
+    """Get config from environment variable only."""
+    return os.environ.get(name, default)
 
 
 def _parse_int_cfg(raw: Optional[str], default: int, minimum: int = 0) -> int:
@@ -110,25 +92,25 @@ except Exception as e:
 
 OPENAI_API_KEY = get_secret("OPENAI_API_KEY", default="")
 ANTHROPIC_API_KEY = get_secret("ANTHROPIC_API_KEY", default="")
-GITHUB_USER = get_cfg("GITHUB_USER", default=None, allow_legacy_secret=True)
-GITHUB_REPO = get_cfg("GITHUB_REPO", default=None, allow_legacy_secret=True)
+GITHUB_USER = get_cfg("GITHUB_USER", default=None)
+GITHUB_REPO = get_cfg("GITHUB_REPO", default=None)
 assert GITHUB_USER and str(GITHUB_USER).strip(), "GITHUB_USER not set. Add it to your config cell (see README)."
 assert GITHUB_REPO and str(GITHUB_REPO).strip(), "GITHUB_REPO not set. Add it to your config cell (see README)."
-MAX_WORKERS = int(get_cfg("OUROBOROS_MAX_WORKERS", default="5", allow_legacy_secret=True) or "5")
-MODEL_MAIN = get_cfg("OUROBOROS_MODEL", default="anthropic/claude-sonnet-4.6", allow_legacy_secret=True)
-MODEL_CODE = get_cfg("OUROBOROS_MODEL_CODE", default="anthropic/claude-sonnet-4.6", allow_legacy_secret=True)
-MODEL_LIGHT = get_cfg("OUROBOROS_MODEL_LIGHT", default=DEFAULT_LIGHT_MODEL, allow_legacy_secret=True)
+MAX_WORKERS = int(get_cfg("OUROBOROS_MAX_WORKERS", default="5") or "5")
+MODEL_MAIN = get_cfg("OUROBOROS_MODEL", default="anthropic/claude-sonnet-4.6")
+MODEL_CODE = get_cfg("OUROBOROS_MODEL_CODE", default="anthropic/claude-sonnet-4.6")
+MODEL_LIGHT = get_cfg("OUROBOROS_MODEL_LIGHT", default=DEFAULT_LIGHT_MODEL)
 
 BUDGET_REPORT_EVERY_MESSAGES = 10
-SOFT_TIMEOUT_SEC = max(60, int(get_cfg("OUROBOROS_SOFT_TIMEOUT_SEC", default="600", allow_legacy_secret=True) or "600"))
-HARD_TIMEOUT_SEC = max(120, int(get_cfg("OUROBOROS_HARD_TIMEOUT_SEC", default="1800", allow_legacy_secret=True) or "1800"))
+SOFT_TIMEOUT_SEC = max(60, int(get_cfg("OUROBOROS_SOFT_TIMEOUT_SEC", default="600") or "600"))
+HARD_TIMEOUT_SEC = max(120, int(get_cfg("OUROBOROS_HARD_TIMEOUT_SEC", default="1800") or "1800"))
 DIAG_HEARTBEAT_SEC = _parse_int_cfg(
-    get_cfg("OUROBOROS_DIAG_HEARTBEAT_SEC", default="30", allow_legacy_secret=True),
+    get_cfg("OUROBOROS_DIAG_HEARTBEAT_SEC", default="30"),
     default=30,
     minimum=0,
 )
 DIAG_SLOW_CYCLE_SEC = _parse_int_cfg(
-    get_cfg("OUROBOROS_DIAG_SLOW_CYCLE_SEC", default="20", allow_legacy_secret=True),
+    get_cfg("OUROBOROS_DIAG_SLOW_CYCLE_SEC", default="20"),
     default=20,
     minimum=0,
 )

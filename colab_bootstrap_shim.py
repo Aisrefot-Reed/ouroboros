@@ -44,6 +44,21 @@ iflow_key = export_secret_to_env("IFLOW_API_KEY", required=True)
 for _name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
     export_secret_to_env(_name, required=False)
 
+# Export configuration variables (required for launcher subprocess)
+for _name in (
+    "GITHUB_USER",
+    "GITHUB_REPO",
+    "OUROBOROS_MODEL",
+    "OUROBOROS_MODEL_CODE",
+    "OUROBOROS_MODEL_LIGHT",
+    "OUROBOROS_MAX_WORKERS",
+    "OUROBOROS_SOFT_TIMEOUT_SEC",
+    "OUROBOROS_HARD_TIMEOUT_SEC",
+    "OUROBOROS_DIAG_HEARTBEAT_SEC",
+    "OUROBOROS_DIAG_SLOW_CYCLE_SEC",
+):
+    export_secret_to_env(_name, required=False)
+
 # Colab diagnostics
 os.environ.setdefault("OUROBOROS_WORKER_START_METHOD", "fork")
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
