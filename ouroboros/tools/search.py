@@ -28,7 +28,14 @@ def _tavily_search(query: str, num_results: int = 5) -> Dict[str, Any]:
     api_key = os.environ.get("TAVILY_API_KEY", "")
     
     if not api_key:
-        return {"error": "TAVILY_API_KEY not set", "method": "tavily"}
+        return {
+            "error": "TAVILY_API_KEY not set. Add it to Colab Secrets.",
+            "hint": "Get free key at https://app.tavily.com/",
+            "method": "tavily"
+        }
+    
+    # Debug: show key prefix (for verification)
+    key_preview = f"{api_key[:8]}..." if len(api_key) > 8 else "(too short)"
     
     try:
         from tavily import TavilyClient
@@ -72,24 +79,22 @@ def _tavily_search(query: str, num_results: int = 5) -> Dict[str, Any]:
             "answer": result_text.strip(),
             "sources": sources,
             "method": "tavily",
-            "result_count": len(results)
+            "result_count": len(results),
+            "debug": {"key_preview": key_preview}
         }
         
     except ImportError:
         return {
-            "error": "tavily-py not installed",
+            "error": "tavily-python not installed",
             "hint": "Run: pip install tavily-python",
-            "method": "tavily"
+            "method": "tavily",
+            "debug": {"key_preview": key_preview}
         }
     except Exception as e:
         return {
             "error": f"Tavily search failed: {repr(e)}",
-            "method": "tavily"
-        }
-    except Exception as e:
-        return {
-            "error": f"Tavily search failed: {repr(e)}",
-            "method": "tavily"
+            "method": "tavily",
+            "debug": {"key_preview": key_preview}
         }
 
 

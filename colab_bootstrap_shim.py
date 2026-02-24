@@ -41,7 +41,7 @@ for _name in ("TELEGRAM_BOT_TOKEN", "TOTAL_BUDGET", "GITHUB_TOKEN"):
 iflow_key = export_secret_to_env("IFLOW_API_KEY", required=True)
 
 # Optional secrets
-for _name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+for _name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "TAVILY_API_KEY"):
     export_secret_to_env(_name, required=False)
 
 # Export configuration variables (required for launcher subprocess)
