@@ -1,7 +1,6 @@
 """Minimal Colab boot shim.
 
-Paste this file contents into the only immutable Colab cell.
-The shim stays tiny and only starts the runtime launcher from repository.
+Updated for iFlow + Kimi + Qwen.
 """
 
 import os
@@ -34,36 +33,32 @@ def export_secret_to_env(name: str, required: bool = False) -> Optional[str]:
     return val
 
 
-# Export required runtime secrets so subprocess launcher can always read env fallback.
+# Export required runtime secrets
 for _name in ("TELEGRAM_BOT_TOKEN", "TOTAL_BUDGET", "GITHUB_TOKEN"):
     export_secret_to_env(_name, required=True)
 
-# API Keys (at least one of these is required)
+# API Keys (at least one is required)
 iflow_key = export_secret_to_env("IFLOW_API_KEY", required=False)
 openrouter_key = export_secret_to_env("OPENROUTER_API_KEY", required=False)
-
 assert iflow_key or openrouter_key, "Missing required secret: IFLOW_API_KEY or OPENROUTER_API_KEY"
 
-# Optional secrets (keep empty if missing).
+# Optional secrets
 for _name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
     export_secret_to_env(_name, required=False)
 
-# Colab diagnostics defaults (override in config cell if needed).
+# Colab diagnostics
 os.environ.setdefault("OUROBOROS_WORKER_START_METHOD", "fork")
-os.environ.setdefault("OUROBOROS_DIAG_HEARTBEAT_SEC", "30")
-os.environ.setdefault("OUROBOROS_DIAG_SLOW_CYCLE_SEC", "20")
 os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
 GITHUB_TOKEN = str(os.environ["GITHUB_TOKEN"])
-GITHUB_USER = os.environ.get("GITHUB_USER", "").strip()
-GITHUB_REPO = os.environ.get("GITHUB_REPO", "").strip()
-assert GITHUB_USER, "GITHUB_USER not set. Add it to your config cell (see README)."
-assert GITHUB_REPO, "GITHUB_REPO not set. Add it to your config cell (see README)."
+GITHUB_USER = os.environ.get("GITHUB_USER", "Aisrefot-Reed").strip()
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "ouroboros").strip()
 BOOT_BRANCH = str(os.environ.get("OUROBOROS_BOOT_BRANCH", "ouroboros"))
 
 REPO_DIR = pathlib.Path("/content/ouroboros_repo").resolve()
 REMOTE_URL = f"https://{GITHUB_TOKEN}:x-oauth-basic@github.com/{GITHUB_USER}/{GITHUB_REPO}.git"
 
+# Set up repo
 if not (REPO_DIR / ".git").exists():
     subprocess.run(["rm", "-rf", str(REPO_DIR)], check=False)
     subprocess.run(["git", "clone", REMOTE_URL, str(REPO_DIR)], check=True)
@@ -72,39 +67,35 @@ else:
 
 subprocess.run(["git", "fetch", "origin"], cwd=str(REPO_DIR), check=True)
 
-# Check if BOOT_BRANCH exists on the fork's remote.
-# New forks (from the main-only public repo) won't have it yet.
-_rc = subprocess.run(
-    ["git", "rev-parse", "--verify", f"origin/{BOOT_BRANCH}"],
-    cwd=str(REPO_DIR), capture_output=True,
-).returncode
+# Defensive branch management
+# Check if the branch exists on remote
+result = subprocess.run(
+    ["git", "ls-remote", "--heads", "origin", BOOT_BRANCH],
+    cwd=str(REPO_DIR), capture_output=True, text=True
+)
 
-if _rc == 0:
-    # Robust checkout: if local branch exists and causes issues, try to force it
+if BOOT_BRANCH in result.stdout:
+    # Branch exists on remote, force local to match it
+    print(f"[boot] syncing local {BOOT_BRANCH} with origin/{BOOT_BRANCH}")
     subprocess.run(["git", "checkout", "-B", BOOT_BRANCH, f"origin/{BOOT_BRANCH}"], cwd=str(REPO_DIR), check=True)
 else:
-    print(f"[boot] branch {BOOT_BRANCH} not found on fork — creating from origin/main")
-    subprocess.run(["git", "checkout", "-b", BOOT_BRANCH, "origin/main"], cwd=str(REPO_DIR), check=True)
+    # Branch doesn't exist, create it from current HEAD (which is main after clone)
+    print(f"[boot] branch {BOOT_BRANCH} not found on remote — creating from main")
+    subprocess.run(["git", "checkout", "-B", BOOT_BRANCH], cwd=str(REPO_DIR), check=True)
     subprocess.run(["git", "push", "-u", "origin", BOOT_BRANCH], cwd=str(REPO_DIR), check=True)
+    
+    # Create stable branch too
     _STABLE = f"{BOOT_BRANCH}-stable"
-    subprocess.run(["git", "branch", _STABLE], cwd=str(REPO_DIR), check=True)
+    subprocess.run(["git", "checkout", "-B", _STABLE], cwd=str(REPO_DIR), check=True)
     subprocess.run(["git", "push", "-u", "origin", _STABLE], cwd=str(REPO_DIR), check=True)
-HEAD_SHA = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(REPO_DIR), text=True).strip()
-print(
-    "[boot] branch=%s sha=%s worker_start=%s diag_heartbeat=%ss"
-    % (
-        BOOT_BRANCH,
-        HEAD_SHA[:12],
-        os.environ.get("OUROBOROS_WORKER_START_METHOD", ""),
-        os.environ.get("OUROBOROS_DIAG_HEARTBEAT_SEC", ""),
-    )
-)
-print("[boot] logs: /content/drive/MyDrive/Ouroboros/logs/supervisor.jsonl")
+    subprocess.run(["git", "checkout", BOOT_BRANCH], cwd=str(REPO_DIR), check=True)
 
-# Mount Drive in notebook process first (interactive auth works here).
+HEAD_SHA = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(REPO_DIR), text=True).strip()
+print(f"[boot] branch={BOOT_BRANCH} sha={HEAD_SHA[:12]}")
+
+# Mount Drive
 if not pathlib.Path("/content/drive/MyDrive").exists():
     drive.mount("/content/drive")
 
 launcher_path = REPO_DIR / "colab_launcher.py"
-assert launcher_path.exists(), f"Missing launcher: {launcher_path}"
 subprocess.run([sys.executable, str(launcher_path)], cwd=str(REPO_DIR), check=True)
