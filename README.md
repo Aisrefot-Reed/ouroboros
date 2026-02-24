@@ -79,6 +79,7 @@ Telegram --> colab_launcher.py
 | `TELEGRAM_BOT_TOKEN` | Yes | [@BotFather](https://t.me/BotFather) on Telegram (see Step 1) |
 | `TOTAL_BUDGET` | Yes | Your logical spending limit in USD units (e.g. `50`) |
 | `GITHUB_TOKEN` | Yes | [github.com/settings/tokens](https://github.com/settings/tokens) -- Generate a classic token with `repo` scope |
+| `TAVILY_API_KEY` | No | [app.tavily.com](https://app.tavily.com/) -- Recommended: AI-optimized web search (free tier: 1000 searches/month) |
 | `OPENAI_API_KEY` | No | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) -- Optional: enables OpenAI web_search fallback (gpt-4o) |
 
 ### Step 3: Set Up Google Colab
@@ -184,6 +185,7 @@ Full text: [BIBLE.md](BIBLE.md)
 
 | Variable | Description |
 |----------|-------------|
+| `TAVILY_API_KEY` | **Recommended**: AI-optimized web search (free: 1000 searches/month). Get at https://app.tavily.com/ |
 | `OPENAI_API_KEY` | Optional: enables OpenAI web_search fallback (gpt-4o). Note: web_search works without this key via DuckDuckGo (free). |
 
 ### Optional Configuration (environment variables)

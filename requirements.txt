@@ -4,3 +4,4 @@ requests
 playwright
 playwright-stealth
 duckduckgo-search
+tavily-python

@@ -1,9 +1,10 @@
 """Web search tool.
 
 Provides real web search via multiple methods:
-1. DuckDuckGo Search API (free, no key required) - PRIMARY
-2. OpenAI web_search tool (requires OPENAI_API_KEY with search access) - FALLBACK
-3. Browser search via Playwright (if other methods fail) - LAST RESORT
+1. Tavily Search API (PRIMARY) - AI-optimized search, free tier available
+2. DuckDuckGo Search API (SECONDARY) - free, no key required
+3. OpenAI web_search tool (FALLBACK) - requires OPENAI_API_KEY
+4. Browser search via Google (LAST RESORT) - when all else fails
 """
 
 from __future__ import annotations
@@ -14,6 +15,82 @@ import time
 from typing import Any, Dict, List
 
 from ouroboros.tools.registry import ToolContext, ToolEntry
+
+
+def _tavily_search(query: str, num_results: int = 5) -> Dict[str, Any]:
+    """
+    Search via Tavily Search API (optimized for AI agents).
+    
+    Requires TAVILY_API_KEY.
+    Free tier: 1000 searches/month.
+    Get key at: https://app.tavily.com/
+    """
+    api_key = os.environ.get("TAVILY_API_KEY", "")
+    
+    if not api_key:
+        return {"error": "TAVILY_API_KEY not set", "method": "tavily"}
+    
+    try:
+        from tavily import TavilyClient
+        
+        client = TavilyClient(api_key=api_key)
+        response = client.search(
+            query=query,
+            search_depth="basic",  # or "advanced" for deeper search
+            max_results=num_results,
+            include_answer=True,
+            include_raw_content=False,
+        )
+        
+        # Tavily returns: answer, results (list with title, url, content, score)
+        answer = response.get("answer", "")
+        results = response.get("results", [])
+        
+        if not results and not answer:
+            return {
+                "answer": f"No results found for: {query}",
+                "sources": [],
+                "method": "tavily"
+            }
+        
+        # Format results
+        sources = []
+        for r in results[:num_results]:
+            sources.append({
+                "title": r.get("title", "Untitled"),
+                "url": r.get("url", ""),
+                "snippet": r.get("content", ""),
+                "score": r.get("score", 0)
+            })
+        
+        result_text = answer if answer else f"Search results for: {query}\n\n"
+        if sources:
+            for i, s in enumerate(sources, 1):
+                result_text += f"{i}. **{s['title']}**\n   {s['snippet'][:200]}...\n\n"
+        
+        return {
+            "answer": result_text.strip(),
+            "sources": sources,
+            "method": "tavily",
+            "result_count": len(results)
+        }
+        
+    except ImportError:
+        return {
+            "error": "tavily-py not installed",
+            "hint": "Run: pip install tavily-python",
+            "method": "tavily"
+        }
+    except Exception as e:
+        return {
+            "error": f"Tavily search failed: {repr(e)}",
+            "method": "tavily"
+        }
+    except Exception as e:
+        return {
+            "error": f"Tavily search failed: {repr(e)}",
+            "method": "tavily"
+        }
 
 
 def _duckduckgo_search(query: str, num_results: int = 5) -> Dict[str, Any]:
@@ -169,23 +246,33 @@ def _web_search(ctx: ToolContext, query: str) -> str:
     Search the web using multiple methods with automatic fallback.
     
     Priority:
-    1. DuckDuckGo (free, no key) - PRIMARY
-    2. OpenAI web_search (if OPENAI_API_KEY set) - SECONDARY
-    3. Browser Google search - LAST RESORT
+    1. Tavily Search (PRIMARY) - AI-optimized, requires TAVILY_API_KEY
+    2. DuckDuckGo (SECONDARY) - free, no key required
+    3. OpenAI web_search (FALLBACK) - requires OPENAI_API_KEY
+    4. Browser Google search (LAST RESORT)
     
     Returns JSON with answer + sources.
     """
     if not query or not query.strip():
         return json.dumps({"error": "Query is required"}, ensure_ascii=False)
     
-    # Method 1: DuckDuckGo (PRIMARY - free, no key)
+    # Method 1: Tavily Search (PRIMARY - best for AI agents)
+    if os.environ.get("TAVILY_API_KEY"):
+        ctx.emit_progress_fn("🔍 Searching via Tavily API...")
+        result = _tavily_search(query, num_results=5)
+        
+        if "error" not in result and result.get("result_count", 0) > 0:
+            return json.dumps(result, ensure_ascii=False, indent=2)
+        ctx.emit_progress_fn(f"⚠️ Tavily failed: {result.get('error', 'unknown')}")
+    
+    # Method 2: DuckDuckGo (free, no key)
     ctx.emit_progress_fn("🔍 Searching via DuckDuckGo...")
     result = _duckduckgo_search(query, num_results=5)
     
     if "error" not in result and result.get("result_count", 0) > 0:
         return json.dumps(result, ensure_ascii=False, indent=2)
     
-    # Method 2: OpenAI web_search (if key available)
+    # Method 3: OpenAI web_search (if key available)
     if os.environ.get("OPENAI_API_KEY"):
         ctx.emit_progress_fn("🔍 DuckDuckGo failed, trying OpenAI web_search...")
         result = _openai_web_search(query)
@@ -193,7 +280,7 @@ def _web_search(ctx: ToolContext, query: str) -> str:
         if "error" not in result:
             return json.dumps(result, ensure_ascii=False, indent=2)
     
-    # Method 3: Browser search (LAST RESORT)
+    # Method 4: Browser search (LAST RESORT)
     ctx.emit_progress_fn("🔍 Falling back to browser search...")
     result = _browser_search(query)
     
