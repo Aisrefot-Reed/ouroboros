@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 log = logging.getLogger(__name__)
 
-DEFAULT_LIGHT_MODEL = "google/gemini-3-pro-preview"
+DEFAULT_LIGHT_MODEL = "Qwen3-Coder-30B-A3B-Instruct"
 
 
 def normalize_reasoning_effort(value: str, default: str = "medium") -> str:
@@ -255,12 +255,12 @@ class LLMClient:
     def default_model(self) -> str:
         """Return the single default model from env. LLM switches via tool if needed."""
         if os.environ.get("IFLOW_API_KEY"):
-            return os.environ.get("OUROBOROS_MODEL", "Kimi-K2-Instruct-0905")
-        return os.environ.get("OUROBOROS_MODEL", "anthropic/claude-sonnet-4.6")
+            return os.environ.get("OUROBOROS_MODEL", "Qwen3-Coder-Plus")
+        return os.environ.get("OUROBOROS_MODEL", "Qwen3-Coder-Plus")
 
     def available_models(self) -> List[str]:
         """Return list of available models from env (for switch_model tool schema)."""
-        main = os.environ.get("OUROBOROS_MODEL", "anthropic/claude-sonnet-4.6")
+        main = os.environ.get("OUROBOROS_MODEL", "Qwen3-Coder-Plus")
         code = os.environ.get("OUROBOROS_MODEL_CODE", "")
         light = os.environ.get("OUROBOROS_MODEL_LIGHT", "")
         models = [main]
