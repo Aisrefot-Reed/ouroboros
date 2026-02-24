@@ -105,6 +105,20 @@ if not drive_path.exists():
 
 print("[boot] Drive mounted successfully")
 
-# Now launch launcher (Drive will be available in subprocess)
+# Now launch launcher with better error handling
 launcher_path = REPO_DIR / "colab_launcher.py"
-subprocess.run([sys.executable, str(launcher_path)], cwd=str(REPO_DIR), check=True)
+print(f"[boot] Launching {launcher_path}...")
+try:
+    result = subprocess.run(
+        [sys.executable, str(launcher_path)],
+        cwd=str(REPO_DIR),
+        check=True,
+        capture_output=True,
+        text=True
+    )
+    print(f"[boot] Launcher completed successfully")
+except subprocess.CalledProcessError as e:
+    print(f"[boot] Launcher failed with exit code {e.returncode}")
+    print(f"[boot] STDOUT:\n{e.stdout}")
+    print(f"[boot] STDERR:\n{e.stderr}")
+    raise
