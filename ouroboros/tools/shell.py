@@ -84,36 +84,25 @@ def _run_shell(ctx: ToolContext, cmd, cwd: str = "") -> str:
         return f"⚠️ SHELL_ERROR: {e}"
 
 
-def _run_claude_cli(work_dir: str, prompt: str, env: dict) -> subprocess.CompletedProcess:
-    """Run Claude CLI with permission-mode fallback."""
-    claude_bin = shutil.which("claude")
-    cmd = [
-        claude_bin, "-p", prompt,
-        "--output-format", "json",
-        "--max-turns", "12",
-        "--tools", "Read,Edit,Grep,Glob",
-    ]
+def _run_qwen_cli(work_dir: str, prompt: str, env: dict) -> subprocess.CompletedProcess:
+    """Run Qwen CLI for code editing."""
+    # Using the exact model ID for iFlow: Qwen3-Coder-Plus (or Qwen3-Coder-480B-A35B-Instruct)
+    # The user found it on the iFlow model platform.
+    qwen_bin = shutil.which("qwen")
+    
+    if not qwen_bin:
+        return subprocess.CompletedProcess(
+            args=["qwen"], returncode=127, stdout="", 
+            stderr="⚠️ 'qwen' CLI not found in PATH."
+        )
 
-    # Try --permission-mode first, fallback to --dangerously-skip-permissions
-    perm_mode = os.environ.get("OUROBOROS_CLAUDE_CODE_PERMISSION_MODE", "bypassPermissions").strip()
-    primary_cmd = cmd + ["--permission-mode", perm_mode]
-    legacy_cmd = cmd + ["--dangerously-skip-permissions"]
+    # Calling qwen with the specific model for code editing
+    cmd = [qwen_bin, "edit", "--model", "Qwen3-Coder-Plus", "--prompt", prompt, "--path", work_dir]
 
     res = subprocess.run(
-        primary_cmd, cwd=work_dir,
+        cmd, cwd=work_dir,
         capture_output=True, text=True, timeout=300, env=env,
     )
-
-    if res.returncode != 0:
-        combined = ((res.stdout or "") + "\n" + (res.stderr or "")).lower()
-        if "--permission-mode" in combined and any(
-            m in combined for m in ("unknown option", "unknown argument", "unrecognized option", "unexpected argument")
-        ):
-            res = subprocess.run(
-                legacy_cmd, cwd=work_dir,
-                capture_output=True, text=True, timeout=300, env=env,
-            )
-
     return res
 
 
@@ -137,45 +126,32 @@ def _check_uncommitted_changes(repo_dir: pathlib.Path) -> str:
             )
             if diff_res.returncode == 0 and diff_res.stdout.strip():
                 return (
-                    f"\n\n⚠️ UNCOMMITTED CHANGES detected after Claude Code edit:\n"
+                    f"\n\n⚠️ UNCOMMITTED CHANGES detected after Qwen Coder edit:\n"
                     f"{diff_res.stdout.strip()}\n"
                     f"Remember to run git_status and repo_commit_push!"
                 )
     except Exception as e:
-        log.debug("Failed to check git status after claude_code_edit: %s", e, exc_info=True)
+        log.debug("Failed to check git status after qwen_code_edit: %s", e, exc_info=True)
     return ""
 
 
-def _parse_claude_output(stdout: str, ctx: ToolContext) -> str:
-    """Parse JSON output and emit cost event, return result string."""
+def _parse_qwen_output(stdout: str, ctx: ToolContext) -> str:
+    """Parse Qwen output and emit cost event, return result string."""
+    # Qwen CLI might not return JSON by default like Claude, 
+    # so we treat it as text unless it looks like JSON.
     try:
         payload = json.loads(stdout)
-        out: Dict[str, Any] = {
-            "result": payload.get("result", ""),
-            "session_id": payload.get("session_id"),
-        }
-        if isinstance(payload.get("total_cost_usd"), (int, float)):
-            ctx.pending_events.append({
-                "type": "llm_usage",
-                "provider": "claude_code_cli",
-                "usage": {"cost": float(payload["total_cost_usd"])},
-                "source": "claude_code_edit",
-                "ts": utc_now_iso(),
-                "category": "task",
-            })
-        return json.dumps(out, ensure_ascii=False, indent=2)
+        return json.dumps(payload, ensure_ascii=False, indent=2)
     except Exception:
-        log.debug("Failed to parse claude_code_edit JSON output", exc_info=True)
         return stdout
 
 
-def _claude_code_edit(ctx: ToolContext, prompt: str, cwd: str = "") -> str:
-    """Delegate code edits to Claude Code CLI."""
+def _qwen_code_edit(ctx: ToolContext, prompt: str, cwd: str = "") -> str:
+    """Delegate code edits to Qwen Coder CLI."""
     from ouroboros.tools.git import _acquire_git_lock, _release_git_lock
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        return "⚠️ ANTHROPIC_API_KEY not set, claude_code_edit unavailable."
+    # Use IFLOW_API_KEY or other relevant key if needed by the CLI
+    api_key = os.environ.get("IFLOW_API_KEY") or os.environ.get("OPENROUTER_API_KEY", "")
 
     work_dir = str(ctx.repo_dir)
     if cwd and cwd.strip() not in ("", ".", "./"):
@@ -183,11 +159,7 @@ def _claude_code_edit(ctx: ToolContext, prompt: str, cwd: str = "") -> str:
         if candidate.exists():
             work_dir = str(candidate)
 
-    claude_bin = shutil.which("claude")
-    if not claude_bin:
-        return "⚠️ Claude CLI not found. Ensure ANTHROPIC_API_KEY is set."
-
-    ctx.emit_progress_fn("Delegating to Claude Code CLI...")
+    ctx.emit_progress_fn("Delegating to Qwen Coder CLI...")
 
     lock = _acquire_git_lock(ctx)
     try:
@@ -203,40 +175,33 @@ def _claude_code_edit(ctx: ToolContext, prompt: str, cwd: str = "") -> str:
         )
 
         env = os.environ.copy()
-        env["ANTHROPIC_API_KEY"] = api_key
-        try:
-            if hasattr(os, "geteuid") and os.geteuid() == 0:
-                env.setdefault("IS_SANDBOX", "1")
-        except Exception:
-            log.debug("Failed to check geteuid for sandbox detection", exc_info=True)
-            pass
-        local_bin = str(pathlib.Path.home() / ".local" / "bin")
-        if local_bin not in env.get("PATH", ""):
-            env["PATH"] = f"{local_bin}:{env.get('PATH', '')}"
-
-        res = _run_claude_cli(work_dir, full_prompt, env)
+        # Ensure the CLI has access to the API key if it needs to call home
+        if os.environ.get("IFLOW_API_KEY"):
+            env["OPENAI_API_KEY"] = os.environ["IFLOW_API_KEY"]
+            env["OPENAI_BASE_URL"] = "https://apis.iflow.cn/v1"
+            
+        res = _run_qwen_cli(work_dir, full_prompt, env)
 
         stdout = (res.stdout or "").strip()
         stderr = (res.stderr or "").strip()
         if res.returncode != 0:
-            return f"⚠️ CLAUDE_CODE_ERROR: exit={res.returncode}\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
-        if not stdout:
-            stdout = "OK: Claude Code completed with empty output."
+            return f"⚠️ QWEN_CODE_ERROR: exit={res.returncode}\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}"
+        
+        result_text = stdout or "OK: Qwen Coder completed."
 
-        # Check for uncommitted changes and append warning BEFORE finally block
+        # Check for uncommitted changes
         warning = _check_uncommitted_changes(ctx.repo_dir)
         if warning:
-            stdout += warning
+            result_text += warning
+
+        return _parse_qwen_output(result_text, ctx)
 
     except subprocess.TimeoutExpired:
-        return "⚠️ CLAUDE_CODE_TIMEOUT: exceeded 300s."
+        return "⚠️ QWEN_CODE_TIMEOUT: exceeded 300s."
     except Exception as e:
-        return f"⚠️ CLAUDE_CODE_FAILED: {type(e).__name__}: {e}"
+        return f"⚠️ QWEN_CODE_FAILED: {type(e).__name__}: {e}"
     finally:
         _release_git_lock(lock)
-
-    # Parse JSON output and account cost
-    return _parse_claude_output(stdout, ctx)
 
 
 def get_tools() -> List[ToolEntry]:
@@ -249,12 +214,12 @@ def get_tools() -> List[ToolEntry]:
                 "cwd": {"type": "string", "default": ""},
             }, "required": ["cmd"]},
         }, _run_shell, is_code_tool=True),
-        ToolEntry("claude_code_edit", {
-            "name": "claude_code_edit",
-            "description": "Delegate code edits to Claude Code CLI. Preferred for multi-file changes and refactors. Follow with repo_commit_push.",
+        ToolEntry("qwen_code_edit", {
+            "name": "qwen_code_edit",
+            "description": "Delegate code edits to Qwen Coder CLI. Preferred for multi-file changes and refactors. Follow with repo_commit_push.",
             "parameters": {"type": "object", "properties": {
                 "prompt": {"type": "string"},
                 "cwd": {"type": "string", "default": ""},
             }, "required": ["prompt"]},
-        }, _claude_code_edit, is_code_tool=True, timeout_sec=300),
+        }, _qwen_code_edit, is_code_tool=True, timeout_sec=300),
     ]

@@ -103,15 +103,22 @@ def fetch_openrouter_pricing() -> Dict[str, Tuple[float, float, float]]:
 
 
 class LLMClient:
-    """OpenRouter API wrapper. All LLM calls go through this class."""
+    """OpenRouter or iFlow API wrapper. All LLM calls go through this class."""
 
     def __init__(
         self,
         api_key: Optional[str] = None,
-        base_url: str = "https://openrouter.ai/api/v1",
+        base_url: Optional[str] = None,
     ):
-        self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
-        self._base_url = base_url
+        # iFlow priority
+        if os.environ.get("IFLOW_API_KEY"):
+            self._api_key = os.environ["IFLOW_API_KEY"]
+            self._base_url = "https://apis.iflow.cn/v1"
+            log.info("LLMClient: Using iFlow API")
+        else:
+            self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
+            self._base_url = base_url or "https://openrouter.ai/api/v1"
+            
         self._client = None
 
     def _get_client(self):
@@ -164,29 +171,30 @@ class LLMClient:
         client = self._get_client()
         effort = normalize_reasoning_effort(reasoning_effort)
 
-        extra_body: Dict[str, Any] = {
-            "reasoning": {"effort": effort, "exclude": True},
-        }
-
-        # Pin Anthropic models to Anthropic provider for prompt caching
-        if model.startswith("anthropic/"):
-            extra_body["provider"] = {
-                "order": ["Anthropic"],
-                "allow_fallbacks": False,
-                "require_parameters": True,
-            }
+        extra_body: Dict[str, Any] = {}
+        
+        # Only use OpenRouter-specific provider pinning if not using iFlow
+        if not os.environ.get("IFLOW_API_KEY"):
+            extra_body["reasoning"] = {"effort": effort, "exclude": True}
+            if model.startswith("anthropic/"):
+                extra_body["provider"] = {
+                    "order": ["Anthropic"],
+                    "allow_fallbacks": False,
+                    "require_parameters": True,
+                }
 
         kwargs: Dict[str, Any] = {
             "model": model,
             "messages": messages,
             "max_tokens": max_tokens,
-            "extra_body": extra_body,
         }
+        if extra_body:
+            kwargs["extra_body"] = extra_body
+            
         if tools:
             # Add cache_control to last tool for Anthropic prompt caching
-            # This caches all tool schemas (they never change between calls)
             tools_with_cache = [t for t in tools]  # shallow copy
-            if tools_with_cache:
+            if tools_with_cache and not os.environ.get("IFLOW_API_KEY"):
                 last_tool = {**tools_with_cache[-1]}  # copy last tool
                 last_tool["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
                 tools_with_cache[-1] = last_tool
@@ -280,6 +288,8 @@ class LLMClient:
 
     def default_model(self) -> str:
         """Return the single default model from env. LLM switches via tool if needed."""
+        if os.environ.get("IFLOW_API_KEY"):
+            return os.environ.get("OUROBOROS_MODEL", "Kimi-K2-Instruct-0905")
         return os.environ.get("OUROBOROS_MODEL", "anthropic/claude-sonnet-4.6")
 
     def available_models(self) -> List[str]:

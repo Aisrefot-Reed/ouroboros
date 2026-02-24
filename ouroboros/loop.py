@@ -85,6 +85,9 @@ def _get_pricing() -> Dict[str, Tuple[float, float, float]]:
 def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int,
                    cached_tokens: int = 0, cache_write_tokens: int = 0) -> float:
     """Estimate cost from token counts using known pricing. Returns 0 if model unknown."""
+    if os.environ.get("IFLOW_API_KEY"):
+        return 0.0  # iFlow is treated as free or un-tracked for now
+        
     model_pricing = _get_pricing()
     # Try exact match first
     pricing = model_pricing.get(model)
