@@ -116,6 +116,8 @@ EXPECTED_TOOLS = [
     "enable_tools",
     # LinkedIn integration
     "linkedin_login", "linkedin_search_jobs", "linkedin_apply_to_job",
+    # Kwork integration
+    "kwork_login", "kwork_search_orders", "kwork_submit_proposal",
 ]
 
 
