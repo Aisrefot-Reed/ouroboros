@@ -100,13 +100,13 @@ import os
 CFG = {
     "GITHUB_USER": "YOUR_GITHUB_USERNAME",                       # <-- CHANGE THIS
     "GITHUB_REPO": "ouroboros",                                  # <-- repo name (after fork)
-    # Models
-    "OUROBOROS_MODEL": "anthropic/claude-sonnet-4.6",            # primary LLM (via OpenRouter)
-    "OUROBOROS_MODEL_CODE": "anthropic/claude-sonnet-4.6",       # code editing (Claude Code CLI)
-    "OUROBOROS_MODEL_LIGHT": "google/gemini-3-pro-preview",      # consciousness + lightweight tasks
-    "OUROBOROS_WEBSEARCH_MODEL": "gpt-5",                        # web search (OpenAI Responses API)
-    # Fallback chain (first model != active will be used on empty response)
-    "OUROBOROS_MODEL_FALLBACK_LIST": "anthropic/claude-sonnet-4.6,google/gemini-3-pro-preview,openai/gpt-4.1",
+    # iFlow Models
+    "OUROBOROS_MODEL": "Kimi-K2-Instruct-0905",                  # primary LLM (via iFlow)
+    "OUROBOROS_MODEL_CODE": "Qwen3-Coder-Plus",                  # code editing coordination
+    "OUROBOROS_MODEL_LIGHT": "Qwen3-Coder-30B-A3B-Instruct",     # consciousness + lightweight tasks
+    "OUROBOROS_WEBSEARCH_MODEL": "Qwen3-Max",                    # web search (if available on iFlow)
+    # Fallback chain (iFlow models)
+    "OUROBOROS_MODEL_FALLBACK_LIST": "Kimi-K2-Instruct-0905,Qwen3-Coder-Plus",
     # Infrastructure
     "OUROBOROS_MAX_WORKERS": "5",
     "OUROBOROS_MAX_ROUNDS": "200",                               # max LLM rounds per task
@@ -194,14 +194,14 @@ Full text: [BIBLE.md](BIBLE.md)
 |----------|---------|-------------|
 | `GITHUB_USER` | *(required in config cell)* | GitHub username |
 | `GITHUB_REPO` | `ouroboros` | GitHub repository name |
-| `OUROBOROS_MODEL` | `anthropic/claude-sonnet-4.6` | Primary LLM model (via OpenRouter) |
-| `OUROBOROS_MODEL_CODE` | `anthropic/claude-sonnet-4.6` | Model for code editing tasks |
-| `OUROBOROS_MODEL_LIGHT` | `google/gemini-3-pro-preview` | Model for lightweight tasks (dedup, compaction) |
-| `OUROBOROS_WEBSEARCH_MODEL` | `gpt-5` | Model for web search (OpenAI Responses API) |
+| `OUROBOROS_MODEL` | `Kimi-K2-Instruct-0905` | Primary LLM model (via iFlow) |
+| `OUROBOROS_MODEL_CODE` | `Qwen3-Coder-Plus` | Model for code editing tasks |
+| `OUROBOROS_MODEL_LIGHT` | `Qwen3-Coder-30B-A3B-Instruct` | Model for lightweight tasks (dedup, compaction) |
+| `OUROBOROS_WEBSEARCH_MODEL` | `Qwen3-Max` | Model for web search |
 | `OUROBOROS_MAX_WORKERS` | `5` | Maximum number of parallel worker processes |
 | `OUROBOROS_BG_BUDGET_PCT` | `10` | Percentage of total budget allocated to background consciousness |
 | `OUROBOROS_MAX_ROUNDS` | `200` | Maximum LLM rounds per task |
-| `OUROBOROS_MODEL_FALLBACK_LIST` | `google/gemini-2.5-pro-preview,openai/o3,anthropic/claude-sonnet-4.6` | Fallback model chain for empty responses |
+| `OUROBOROS_MODEL_FALLBACK_LIST` | `Kimi-K2-Instruct-0905,Qwen3-Coder-Plus` | Fallback model chain for empty responses |
 
 ---
 
