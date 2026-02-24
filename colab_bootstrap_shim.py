@@ -91,9 +91,20 @@ else:
 HEAD_SHA = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(REPO_DIR), text=True).strip()
 print(f"[boot] branch={BOOT_BRANCH} sha={HEAD_SHA[:12]}")
 
-# Mount Drive
-if not pathlib.Path("/content/drive/MyDrive").exists():
-    drive.mount("/content/drive")
+# Mount Drive **BEFORE** launching launcher (critical for subprocess context)
+drive_path = pathlib.Path("/content/drive/MyDrive")
+if not drive_path.exists():
+    print("[boot] mounting Google Drive...")
+    drive.mount("/content/drive", force_remount=True)
+else:
+    print("[boot] Google Drive already mounted")
 
+# Verify Drive is mounted
+if not drive_path.exists():
+    raise RuntimeError("Failed to mount Google Drive")
+
+print("[boot] Drive mounted successfully")
+
+# Now launch launcher (Drive will be available in subprocess)
 launcher_path = REPO_DIR / "colab_launcher.py"
 subprocess.run([sys.executable, str(launcher_path)], cwd=str(REPO_DIR), check=True)

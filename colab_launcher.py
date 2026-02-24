@@ -51,7 +51,7 @@ install_apply_patch()
 # 1) Secrets + runtime config
 # ----------------------------
 from google.colab import userdata  # type: ignore
-from google.colab import drive  # type: ignore
+# NOTE: drive mounting is handled in colab_bootstrap_shim.py before launching this script
 
 _LEGACY_CFG_WARNED: Set[str] = set()
 
@@ -150,10 +150,15 @@ if str(ANTHROPIC_API_KEY or "").strip():
     ensure_claude_code_cli()
 
 # ----------------------------
-# 2) Mount Drive
+# 2) Drive paths (already mounted in colab_bootstrap_shim.py)
 # ----------------------------
-if not pathlib.Path("/content/drive/MyDrive").exists():
-    drive.mount("/content/drive")
+# Verify Drive is mounted (should be done in bootstrap)
+_drive_check_path = pathlib.Path("/content/drive/MyDrive")
+if not _drive_check_path.exists():
+    raise RuntimeError(
+        "Google Drive not mounted! This should have been mounted in colab_bootstrap_shim.py. "
+        "Please re-run the bootstrap script."
+    )
 
 DRIVE_ROOT = pathlib.Path("/content/drive/MyDrive/Ouroboros").resolve()
 REPO_DIR = pathlib.Path("/content/ouroboros_repo").resolve()
