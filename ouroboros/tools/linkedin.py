@@ -48,7 +48,8 @@ def _linkedin_login(ctx: ToolContext, email: str, password: str) -> str:
             try:
                 error = page.inner_text(".error")
                 return f"Login failed: {error}"
-            except:
+            except Exception as e:
+                log.debug(f"Error checking for error message: {e}")
                 return "Login may have failed - please check manually. Possible 2FA required."
     
     except Exception as e:
@@ -95,15 +96,15 @@ def _linkedin_search_jobs(ctx: ToolContext, keywords: str, location: str = "",
                     company_elem = job_card.locator(".job-card-container__primary-description")
                     if company_elem.count() > 0:
                         company = company_elem.inner_text().strip()
-                except:
-                    pass
+                except Exception as e:
+                    log.debug(f"Error getting company for job {i}: {e}")
                 
                 try:
                     location_elem = job_card.locator(".job-card-container__metadata-item")
                     if location_elem.count() > 0:
                         location = location_elem.inner_text().strip()
-                except:
-                    pass
+                except Exception as e:
+                    log.debug(f"Error getting location for job {i}: {e}")
                 
                 job_list.append({
                     "title": title,
@@ -117,6 +118,9 @@ def _linkedin_search_jobs(ctx: ToolContext, keywords: str, location: str = "",
             except Exception as e:
                 log.debug(f"Error parsing job {i}: {e}")
                 continue
+        
+        if not job_list:
+            return "No jobs found with the specified criteria"
         
         return json.dumps(job_list, indent=2, ensure_ascii=False)
     
@@ -150,12 +154,16 @@ def _linkedin_apply_to_job(ctx: ToolContext, job_url: str) -> str:
             # For now, just close the dialog to avoid getting stuck
             try:
                 page.click("button[aria-label='Dismiss']")
-            except:
-                page.keyboard.press("Escape")
+            except Exception as e:
+                log.debug(f"Could not click dismiss button: {e}")
+                try:
+                    page.keyboard.press("Escape")
+                except Exception as e2:
+                    log.debug(f"Could not press escape key: {e2}")
             
             return f"Attempted to apply to job: {job_url} (Easy Apply process started but not completed automatically)"
         
-        except:
+        except Exception as e:
             # If Easy Apply isn't available, look for regular Apply button
             try:
                 apply_selector = "button.jobs-apply-button:has-text('Apply')"
@@ -163,8 +171,8 @@ def _linkedin_apply_to_job(ctx: ToolContext, job_url: str) -> str:
                 page.click(apply_selector)
                 
                 return f"Started application process for job: {job_url} (Redirected to external site)"
-            except:
-                return f"Could not find apply button for job: {job_url}"
+            except Exception as e2:
+                return f"Could not find apply button for job: {job_url} - {str(e2)}"
     
     except Exception as e:
         return f"Error applying to job: {str(e)}"
