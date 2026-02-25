@@ -182,41 +182,86 @@ def _linkedin_apply_to_job(ctx: ToolContext, job_url: str) -> str:
 def _linkedin_post(ctx: ToolContext, text: str) -> str:
     """
     Post content to LinkedIn feed using browser automation.
+    First navigate to the profile page, then create a post.
     """
     try:
         from ouroboros.tools.browser import _ensure_browser
         
         page = _ensure_browser(ctx)
         
-        # Navigate to the LinkedIn feed
-        page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
+        # Navigate to the user's profile to find the "Create Post" button
+        page.goto("https://www.linkedin.com/in/", wait_until="domcontentloaded")
         
-        # Wait for the page to load
-        page.wait_for_selector("button[aria-label='Create a post']", timeout=10000)
+        # Wait for the page to load and get redirected to the user's profile
+        page.wait_for_timeout(2000)
         
-        # Click the "Create a post" button
-        page.click("button[aria-label='Create a post']")
+        # Look for the "Create a post" button which is typically on the profile page or accessible from there
+        # Alternative: use the "Create a post" button from the main navigation
+        try:
+            # Try to find the create post button in the main navigation
+            page.wait_for_selector("button[aria-label='Create a post']", timeout=5000)
+            page.click("button[aria-label='Create a post']")
+        except:
+            # If not found, navigate to the home feed to find the button there
+            page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
+            page.wait_for_selector("button[aria-label='Create a post']", timeout=5000)
+            page.click("button[aria-label='Create a post']")
         
-        # Wait for the text editor to appear
-        page.wait_for_selector("div[contenteditable='true'][data-testid='publication-content-editor']", timeout=5000)
+        # Wait for the text editor modal/dialog to appear
+        page.wait_for_selector("div[contenteditable='true'][data-testid*='editor']", timeout=5000)
         
-        # Clear any existing content and enter the post text
-        page.fill("div[contenteditable='true'][data-testid='publication-content-editor']", text)
+        # Fill the contenteditable area with the post text
+        # The exact selector might need to be adjusted based on LinkedIn's current DOM structure
+        editor_selectors = [
+            "div[contenteditable='true'][data-testid*='editor']",
+            "div[contenteditable='true'][data-text='true']",
+            "div[contenteditable='true'][role='textbox']",
+            "div[data-testid='create-post-content-editor']",
+            "div[role='textbox'][data-testid='content-editable-container']"
+        ]
+        
+        post_filled = False
+        for selector in editor_selectors:
+            try:
+                page.wait_for_selector(selector, timeout=2000)
+                page.fill(selector, text)
+                post_filled = True
+                break
+            except:
+                continue
+        
+        if not post_filled:
+            return f"Could not find text editor to post content: {text[:100]}..."
         
         # Wait a bit for the content to be processed
         page.wait_for_timeout(1000)
         
         # Check if there's a post button and click it
         try:
-            # Look for the post button (text might be "Post", "Share", or similar)
-            page.wait_for_selector("button[aria-label='Post'][type='button']", timeout=3000)
-            page.click("button[aria-label='Post'][type='button']")
+            # Look for the post button with various possible selectors
+            button_selectors = [
+                "button[aria-label='Post'][type='button']",
+                "button.share-submit-button",
+                "button[type='submit'][data-test-id='post-content-button']",
+                "button[aria-label*='Share'][type='button']",
+                "button[role='button'][type='submit']"
+            ]
+            
+            button_clicked = False
+            for selector in button_selectors:
+                try:
+                    page.wait_for_selector(selector, timeout=2000)
+                    page.click(selector)
+                    button_clicked = True
+                    break
+                except:
+                    continue
+            
+            if not button_clicked:
+                return f"Could not find post button after entering content: {text[:100]}..."
+                
         except Exception as e:
-            # If the above selector doesn't work, try alternative selectors
-            try:
-                page.click("button.share-submit-button")
-            except Exception as e2:
-                return f"Could not find post button after entering content: {str(e)}, {str(e2)}"
+            return f"Error clicking post button: {str(e)}"
         
         # Wait to see if the post was successful
         page.wait_for_timeout(2000)
