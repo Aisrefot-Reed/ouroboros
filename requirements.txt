@@ -5,3 +5,4 @@ playwright
 playwright-stealth
 duckduckgo-search
 tavily-python
+cryptography
