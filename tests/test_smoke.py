@@ -114,6 +114,14 @@ EXPECTED_TOOLS = [
     "compact_context",
     "list_available_tools",
     "enable_tools",
+    # Credentials management
+    "store_credentials", "manage_credentials",
+    # LinkedIn integration
+    "linkedin_login", "linkedin_post", "linkedin_job_search", "linkedin_apply",
+    "schedule_linkedin_post", "schedule_linkedin_monitoring",
+    # Kwork integration
+    "kwork_login", "search_kwork_orders", "submit_kwork_proposal",
+    "schedule_kwork_monitoring",
 ]
 
 
