@@ -6,6 +6,7 @@ Provides functionality to:
 - Monitor job postings
 - Apply to jobs automatically
 - Manage LinkedIn profile
+- Post content to LinkedIn feed
 """
 
 from __future__ import annotations
@@ -178,6 +179,54 @@ def _linkedin_apply_to_job(ctx: ToolContext, job_url: str) -> str:
         return f"Error applying to job: {str(e)}"
 
 
+def _linkedin_post(ctx: ToolContext, text: str) -> str:
+    """
+    Post content to LinkedIn feed using browser automation.
+    """
+    try:
+        from ouroboros.tools.browser import _ensure_browser
+        
+        page = _ensure_browser(ctx)
+        
+        # Navigate to the LinkedIn feed
+        page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
+        
+        # Wait for the page to load
+        page.wait_for_selector("button[aria-label='Create a post']", timeout=10000)
+        
+        # Click the "Create a post" button
+        page.click("button[aria-label='Create a post']")
+        
+        # Wait for the text editor to appear
+        page.wait_for_selector("div[contenteditable='true'][data-testid='publication-content-editor']", timeout=5000)
+        
+        # Clear any existing content and enter the post text
+        page.fill("div[contenteditable='true'][data-testid='publication-content-editor']", text)
+        
+        # Wait a bit for the content to be processed
+        page.wait_for_timeout(1000)
+        
+        # Check if there's a post button and click it
+        try:
+            # Look for the post button (text might be "Post", "Share", or similar)
+            page.wait_for_selector("button[aria-label='Post'][type='button']", timeout=3000)
+            page.click("button[aria-label='Post'][type='button']")
+        except Exception as e:
+            # If the above selector doesn't work, try alternative selectors
+            try:
+                page.click("button.share-submit-button")
+            except Exception as e2:
+                return f"Could not find post button after entering content: {str(e)}, {str(e2)}"
+        
+        # Wait to see if the post was successful
+        page.wait_for_timeout(2000)
+        
+        return f"Successfully posted to LinkedIn: {text[:100]}..."
+    
+    except Exception as e:
+        return f"Error posting to LinkedIn: {str(e)}"
+
+
 def get_tools() -> List[ToolEntry]:
     return [
         ToolEntry(
@@ -229,6 +278,22 @@ def get_tools() -> List[ToolEntry]:
                 }
             },
             handler=_linkedin_apply_to_job,
+            timeout_sec=60
+        ),
+        ToolEntry(
+            name="linkedin_post",
+            schema={
+                "name": "linkedin_post",
+                "description": "Post content to LinkedIn feed",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string", "description": "Text content for the LinkedIn post"}
+                    },
+                    "required": ["text"]
+                }
+            },
+            handler=_linkedin_post,
             timeout_sec=60
         )
     ]
