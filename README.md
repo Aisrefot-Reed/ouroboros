@@ -147,6 +147,8 @@ Open your Telegram bot and send any message. The first person to write becomes t
 | `/bg start` | Start background consciousness loop. Also accepts `/bg on`. |
 | `/bg stop` | Stop background consciousness loop. Also accepts `/bg off`. |
 | `/bg` | Show background consciousness status (running/stopped). |
+| `/think <topic>` | Trigger immediate background thought on a topic with chat comment. |
+| `/review_multi` | Trigger multi-model review (uses 3+ different LLMs for consensus). |
 
 All other messages are sent directly to the LLM (Principle 3: LLM-First).
 
@@ -195,6 +197,43 @@ To customize monitoring keywords, update your scratchpad or ask Ouroboros during
 | `/cmd get_kwork_orders keywords="python" notify=true` | Get orders + notify |
 | `/cmd submit_kwork_proposal order_url="..." proposal_text="..."` | Submit proposal |
 | `/cmd schedule_kwork_monitoring keywords="..." check_interval_hours=3` | Schedule monitoring |
+
+---
+
+## Multi-Model Review (Consensus Analysis)
+
+Ouroboros can send code or text to **multiple LLM models simultaneously** for independent review and consensus:
+
+### How It Works
+
+1. **LLM selects models** — The agent chooses 3+ diverse models based on the task
+2. **Parallel requests** — All models review independently (FlowAI API)
+3. **Structured verdicts** — Each model returns its analysis
+4. **Budget tracking** — Cost is tracked automatically per model
+
+### Usage
+
+**Via Telegram command:**
+```
+/review_multi
+```
+This queues a review task that will use the `multi_model_review` tool.
+
+**Via LLM tool call:**
+```python
+multi_model_review(
+    content="<your code or text>",
+    prompt="Review for bugs, performance issues, and security vulnerabilities",
+    models=["anthropic/claude-opus-4.6", "openai/o3", "google/gemini-2.5-pro"]
+)
+```
+
+### Available Models (FlowAI)
+
+- `Kimi-K2-Instruct-0905` — Primary model (default)
+- `Qwen3-Coder-Plus` — Code editing
+- `Qwen3-Coder-30B-A3B-Instruct` — Lightweight tasks
+- `Qwen3-Max` — Web search
 
 ---
 

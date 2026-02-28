@@ -415,6 +415,13 @@ def _handle_supervisor_command(text: str, chat_id: int, tg_offset: int = 0):
         queue_review_task(reason="owner:/review", force=True)
         return "[Supervisor handled /review — review task queued]\n"
 
+    # New command: /review_multi — trigger multi-model review
+    if lowered.startswith("/review_multi"):
+        # Queue a review task that will use multi_model_review tool
+        queue_review_task(reason="owner:/review_multi (multi-model consensus)", force=True)
+        send_with_budget(chat_id, "🔎 Multi-model review queued — 3+ LLMs will provide independent verdicts.")
+        return "[Supervisor handled /review_multi — multi-model review task queued]\n"
+
     if lowered.startswith("/evolve"):
         parts = lowered.split()
         action = parts[1] if len(parts) > 1 else "on"
@@ -443,6 +450,22 @@ def _handle_supervisor_command(text: str, chat_id: int, tg_offset: int = 0):
             bg_status = "running" if _consciousness.is_running else "stopped"
             send_with_budget(chat_id, f"🧠 Background consciousness: {bg_status}")
         return f"[Supervisor handled /bg {action}]\n"
+
+    # New command: /think — trigger immediate background thought with comment
+    if lowered.startswith("/think"):
+        parts = lowered.split(maxsplit=1)
+        topic = parts[1] if len(parts) > 1 else "general reflection"
+        
+        # Inject observation to consciousness
+        _consciousness.inject_observation(f"Owner request: Think about '{topic}'")
+        
+        # Wake up consciousness if sleeping
+        if not _consciousness.is_running:
+            _consciousness.start()
+        
+        # Send immediate acknowledgment
+        send_with_budget(chat_id, f"🧠 Thinking about: {topic}\n\nBackground consciousness will reflect on this and may share insights.")
+        return f"[Supervisor handled /think — topic queued: {topic}]\n"
 
     return ""
 
