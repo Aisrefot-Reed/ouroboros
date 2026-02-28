@@ -6,16 +6,21 @@ and browser_action (click, fill, evaluate JS on current page).
 
 Browser state lives in ToolContext (per-task lifecycle),
 not module-level globals — safe across threads.
+
+Supports persistent sessions via cookies storage on Google Drive.
 """
 
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import subprocess
 import sys
 import threading
-from typing import Any, Dict, List
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 try:
     from playwright_stealth import Stealth
@@ -32,6 +37,83 @@ _playwright_ready = False
 # Persists across ToolContext recreations but can be reset on error
 _pw_instance = None
 _pw_thread_id = None  # Track which thread owns the Playwright instance
+
+
+def _get_session_path(ctx: ToolContext, session_name: str = "default") -> Path:
+    """Get path for storing browser session data on Drive."""
+    sessions_dir = ctx.drive_root() / "browser_sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    return sessions_dir / f"{session_name}_session.json"
+
+
+def _save_cookies(ctx: ToolContext, session_name: str = "default") -> None:
+    """Save current browser cookies to Drive."""
+    try:
+        if ctx.browser_state.page is None:
+            return
+        cookies = ctx.browser_state.page.context.cookies()
+        session_path = _get_session_path(ctx, session_name)
+        
+        # Also save localStorage if possible
+        storage_state = {
+            "cookies": cookies,
+            "saved_at": time.time(),
+        }
+        
+        # Try to get localStorage
+        try:
+            local_storage = ctx.browser_state.page.evaluate("() => JSON.stringify(localStorage)")
+            storage_state["localStorage"] = local_storage
+        except Exception:
+            pass
+        
+        # Atomic write
+        tmp_path = session_path.with_suffix('.tmp')
+        tmp_path.write_text(json.dumps(storage_state, indent=2))
+        tmp_path.rename(session_path)
+        log.info(f"Saved browser session to {session_path}")
+    except Exception as e:
+        log.warning(f"Failed to save browser session: {e}")
+
+
+def _load_cookies(ctx: ToolContext, session_name: str = "default") -> bool:
+    """Load and apply cookies from Drive."""
+    try:
+        session_path = _get_session_path(ctx, session_name)
+        if not session_path.exists():
+            return False
+        
+        storage_state = json.loads(session_path.read_text())
+        cookies = storage_state.get("cookies", [])
+        
+        if ctx.browser_state.page is None:
+            return False
+        
+        # Set cookies
+        ctx.browser_state.page.context.add_cookies(cookies)
+        
+        # Restore localStorage if available
+        if "localStorage" in storage_state:
+            try:
+                ctx.browser_state.page.evaluate(f"""
+                    () => {{
+                        const data = {storage_state["localStorage"]};
+                        try {{
+                            const obj = typeof data === 'string' ? JSON.parse(data) : data;
+                            Object.keys(obj).forEach(key => {{
+                                localStorage.setItem(key, obj[key]);
+                            }});
+                        }} catch (e) {{}}
+                    }}
+                """)
+            except Exception:
+                pass
+        
+        log.info(f"Loaded browser session from {session_path}")
+        return True
+    except Exception as e:
+        log.warning(f"Failed to load browser session: {e}")
+        return False
 
 
 def _ensure_playwright_installed():
@@ -96,10 +178,20 @@ def _reset_playwright_greenlet():
     log.info("Playwright greenlet state reset complete")
 
 
-def _ensure_browser(ctx: ToolContext):
+def _ensure_browser(ctx: ToolContext, session_name: str = "default"):
     """Create or reuse browser for this task. Browser state lives in ctx,
-    but Playwright instance is module-level to avoid greenlet issues."""
+    but Playwright instance is module-level to avoid greenlet issues.
+    
+    Args:
+        ctx: Tool context
+        session_name: Name of the session to load (e.g., 'kwork', 'linkedin').
+                     If not provided, uses ctx.browser_session_name.
+    """
     global _pw_instance, _pw_thread_id
+    
+    # Use session name from context if not explicitly provided
+    if session_name == "default" and ctx.browser_session_name:
+        session_name = ctx.browser_session_name
 
     # Check if we've switched threads - if so, reset everything
     current_thread_id = threading.get_ident()
@@ -165,16 +257,33 @@ def _ensure_browser(ctx: ToolContext):
         stealth.apply_stealth_sync(ctx.browser_state.page)
 
     ctx.browser_state.page.set_default_timeout(30000)
+    
+    # Load persisted session cookies (auto-login)
+    _load_cookies(ctx, session_name)
+    
     return ctx.browser_state.page
 
 
-def cleanup_browser(ctx: ToolContext) -> None:
+def cleanup_browser(ctx: ToolContext, session_name: str = "default") -> None:
     """Close browser and playwright. Called by agent.py in finally block.
+    
+    Before closing, saves cookies to Drive for session persistence.
 
     Note: We DON'T stop the module-level _pw_instance here to allow reuse
     across tasks. Only close the browser and page for this context.
+    
+    Args:
+        ctx: Tool context
+        session_name: Name of the session to save. If "default", uses ctx.browser_session_name.
     """
     global _pw_instance
+    
+    # Use session name from context if not explicitly provided
+    if session_name == "default" and ctx.browser_session_name:
+        session_name = ctx.browser_session_name
+
+    # Save cookies before closing (persist session)
+    _save_cookies(ctx, session_name)
 
     try:
         if ctx.browser_state.page is not None:

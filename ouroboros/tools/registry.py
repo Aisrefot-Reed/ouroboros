@@ -44,6 +44,9 @@ class ToolContext:
 
     # Per-task browser state
     browser_state: BrowserState = field(default_factory=BrowserState)
+    
+    # Browser session name for persistent cookies (e.g., 'kwork', 'linkedin', 'default')
+    browser_session_name: str = "default"
 
     # Budget tracking (set by loop.py for real-time usage events)
     event_queue: Optional[Any] = None

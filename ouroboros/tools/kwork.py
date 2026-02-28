@@ -2,6 +2,7 @@
 
 Tools for Kwork automation: login, search orders, submit proposals.
 Uses browser automation via browse_page and browser_action.
+Supports persistent sessions via cookies stored on Google Drive.
 """
 
 from __future__ import annotations
@@ -14,50 +15,85 @@ from ouroboros.tools.registry import ToolContext, ToolEntry
 from ouroboros.tools.credentials import _load_credentials
 
 
-def _kwork_login_impl(ctx: ToolContext) -> str:
-    """Login to Kwork using stored credentials."""
-    credentials = _load_credentials(ctx)
+def _check_kwork_logged_in(ctx: ToolContext) -> bool:
+    """Check if already logged in to Kwork by checking current page or cookies."""
+    try:
+        page = ctx.browser_state.page
+        if page is None:
+            return False
+        
+        # Check if we're on kwork.ru and not on login page
+        current_url = page.url
+        if "kwork.ru" in current_url and "login" not in current_url:
+            return True
+        
+        # Check for auth cookies
+        cookies = page.context.cookies()
+        for cookie in cookies:
+            if cookie.get("name") in ("PHPSESSID", "user_id", "kwork"):
+                return True
+        
+        return False
+    except Exception:
+        return False
+
+
+def _kwork_login_impl(ctx: ToolContext, force: bool = False) -> str:
+    """Login to Kwork using stored credentials.
     
+    If session cookies exist, auto-login without credentials.
+    If force=True, re-login even if session exists.
+    """
+    # Set browser session name for Kwork
+    ctx.browser_session_name = "kwork"
+    
+    # Check if already logged in (skip login if session exists)
+    if not force and _check_kwork_logged_in(ctx):
+        return "✅ Already logged in to Kwork (session restored from cookies)"
+    
+    credentials = _load_credentials(ctx)
+
     if "kwork" not in credentials:
         return "⚠️ No Kwork credentials found. Use store_credentials first."
-    
+
     creds = credentials["kwork"]
     login_email = creds.get("email")
     login_password = creds.get("password")
-    
+
     if not login_email or not login_password:
         return "⚠️ Incomplete credentials"
-    
+
     try:
         page = ctx.browser_state.page
-        
+
         # Navigate to Kwork login
         page.goto("https://kwork.ru/login", wait_until="networkidle", timeout=30000)
         time.sleep(2)
-        
+
         # Fill email
         email_input = page.locator('input[name="login"]')
         email_input.fill(login_email)
-        
+
         # Fill password
         password_input = page.locator('input[name="password"]')
         password_input.fill(login_password)
-        
+
         # Click submit
         submit_btn = page.locator('button[type="submit"]').first
         submit_btn.click()
-        
+
         # Wait for navigation
         page.wait_for_load_state("networkidle", timeout=30000)
         time.sleep(3)
-        
+
         # Check if login succeeded
         current_url = page.url
         if "kwork.ru" in current_url and "login" not in current_url:
-            return f"✅ Kwork login successful: {login_email}"
+            # Session will be saved automatically by cleanup_browser
+            return f"✅ Kwork login successful: {login_email} (session saved)"
         else:
             return f"⚠️ Kwork login failed. Current URL: {current_url}"
-    
+
     except Exception as e:
         return f"⚠️ Kwork login error: {repr(e)}"
 
@@ -68,15 +104,34 @@ def _search_kwork_orders_impl(
     min_budget: int = 0,
     max_budget: Optional[int] = None,
     skills: Optional[str] = None,
-    max_results: int = 15
+    max_results: int = 15,
+    auto_login: bool = True
 ) -> str:
-    """Search for orders on Kwork."""
+    """Search for orders on Kwork.
+    
+    Args:
+        keywords: Search keywords
+        min_budget: Minimum budget in RUB
+        max_budget: Maximum budget in RUB
+        skills: Comma-separated skills filter
+        max_results: Max results (default: 15)
+        auto_login: If True, auto-login using saved session
+    """
+    # Set browser session name for Kwork
+    ctx.browser_session_name = "kwork"
+    
+    # Auto-login if needed
+    if auto_login and not _check_kwork_logged_in(ctx):
+        login_result = _kwork_login_impl(ctx, force=False)
+        if "⚠️" in login_result or "Error" in login_result:
+            return f"⚠️ Cannot search orders: {login_result}"
+    
     try:
         page = ctx.browser_state.page
-        
+
         # Build search URL
         search_url = f"https://kwork.ru/birza?keyword={keywords.replace(' ', '%20')}"
-        
+
         page.goto(search_url, wait_until="networkidle", timeout=30000)
         time.sleep(3)
         
@@ -227,9 +282,9 @@ def _schedule_kwork_monitoring_impl(
     """Schedule Kwork order monitoring."""
     import uuid
     from supervisor.queue import enqueue_task
-    
+
     schedule_id = uuid.uuid4().hex[:8]
-    
+
     enqueue_task({
         "id": schedule_id,
         "type": "kwork_order_monitor",
@@ -243,29 +298,79 @@ def _schedule_kwork_monitoring_impl(
         "auto_proposal": auto_proposal,
         "proposal_template": proposal_template,
     })
-    
+
     auto_text = " with auto-proposal" if auto_proposal else ""
     return f"✅ Kwork monitoring scheduled (ID: {schedule_id}), every {check_interval_hours}h{auto_text}"
+
+
+def _get_kwork_orders_impl(
+    ctx: ToolContext,
+    keywords: str,
+    min_budget: int = 0,
+    max_budget: Optional[int] = None,
+    skills: Optional[str] = None,
+    max_results: int = 10,
+    notify: bool = True
+) -> str:
+    """Get new Kwork orders and optionally send notification.
+    
+    This tool is designed for continuous monitoring in background consciousness.
+    It searches for orders and can send a message to the owner if new orders are found.
+    
+    Args:
+        keywords: Search keywords
+        min_budget: Minimum budget in RUB
+        max_budget: Maximum budget in RUB
+        skills: Comma-separated skills filter
+        max_results: Max results (default: 10)
+        notify: If True, send message to owner with results
+    """
+    # Set browser session name for Kwork
+    ctx.browser_session_name = "kwork"
+    
+    # Auto-login if needed
+    if not _check_kwork_logged_in(ctx):
+        login_result = _kwork_login_impl(ctx, force=False)
+        if "⚠️" in login_result or "Error" in login_result:
+            return f"⚠️ Cannot get orders: {login_result}"
+    
+    # Search for orders (reuse search implementation)
+    search_result = _search_kwork_orders_impl(
+        ctx, keywords, min_budget, max_budget, skills, max_results, auto_login=False
+    )
+    
+    # If notify is True and orders found, send message to owner
+    if notify and "📭" not in search_result and ctx.current_chat_id:
+        from ouroboros.tools.control import _send_owner_message
+        try:
+            _send_owner_message(ctx, search_result)
+            return f"✅ Found new Kwork orders and sent notification (keywords: {keywords})"
+        except Exception:
+            pass
+    
+    return search_result
 
 
 def get_tools() -> List[ToolEntry]:
     return [
         ToolEntry("kwork_login", {
             "name": "kwork_login",
-            "description": "Login to Kwork using stored credentials. Requires store_credentials first.",
+            "description": "Login to Kwork using stored credentials. If session cookies exist, auto-login without credentials. Use force=true to re-login.",
             "parameters": {"type": "object", "properties": {
+                "force": {"type": "boolean", "description": "Force re-login even if session exists (default: false)"},
             }},
         }, _kwork_login_impl),
-        
+
         ToolEntry("search_kwork_orders", {
             "name": "search_kwork_orders",
-            "description": "Search for orders on Kwork with filters for budget and skills.",
+            "description": "Search for orders on Kwork with filters for budget and skills. Auto-logs in using saved session.",
             "parameters": {"type": "object", "properties": {
                 "keywords": {"type": "string", "description": "Search keywords"},
                 "min_budget": {"type": "integer", "description": "Minimum budget in RUB"},
                 "max_budget": {"type": "integer", "description": "Maximum budget in RUB"},
                 "skills": {"type": "string", "description": "Comma-separated skills filter"},
                 "max_results": {"type": "integer", "description": "Max results (default: 15)"},
+                "auto_login": {"type": "boolean", "description": "Auto-login using saved session (default: true)"},
             }, "required": ["keywords"]},
         }, _search_kwork_orders_impl),
         
@@ -293,4 +398,17 @@ def get_tools() -> List[ToolEntry]:
                 "proposal_template": {"type": "string", "description": "Template for auto-proposals"},
             }, "required": ["keywords"]},
         }, _schedule_kwork_monitoring_impl),
+        
+        ToolEntry("get_kwork_orders", {
+            "name": "get_kwork_orders",
+            "description": "Get new Kwork orders and optionally notify owner. Designed for background consciousness monitoring.",
+            "parameters": {"type": "object", "properties": {
+                "keywords": {"type": "string", "description": "Search keywords"},
+                "min_budget": {"type": "integer", "description": "Minimum budget in RUB"},
+                "max_budget": {"type": "integer", "description": "Maximum budget in RUB"},
+                "skills": {"type": "string", "description": "Comma-separated skills filter"},
+                "max_results": {"type": "integer", "description": "Max results (default: 10)"},
+                "notify": {"type": "boolean", "description": "Send notification to owner if orders found (default: true)"},
+            }, "required": ["keywords"]},
+        }, _get_kwork_orders_impl),
     ]

@@ -152,6 +152,52 @@ All other messages are sent directly to the LLM (Principle 3: LLM-First).
 
 ---
 
+## Kwork Integration (Freelance Automation)
+
+Ouroboros can automatically monitor Kwork for new orders and notify you or even submit proposals autonomously.
+
+### Setup Kwork Credentials
+
+1. **Store your Kwork credentials** (encrypted on Google Drive):
+
+   Send to your bot:
+   ```
+   /cmd store_credentials platform=kwork email=your@email.com password=yourpassword
+   ```
+
+2. **Login to establish session** (once):
+   ```
+   /cmd kwork_login
+   ```
+   This will save browser cookies to Drive. Future logins are automatic.
+
+3. **Test order search**:
+   ```
+   /cmd search_kwork_orders keywords="python telegram bot" min_budget=1000
+   ```
+
+### Continuous Monitoring
+
+Background consciousness automatically checks Kwork every few wakeups:
+
+- Uses `get_kwork_orders` tool with your configured keywords
+- Automatically notifies you via Telegram when new orders found
+- Session persists across restarts (no need to re-login)
+
+To customize monitoring keywords, update your scratchpad or ask Ouroboros during a chat session.
+
+### Manual Commands
+
+| Command | Description |
+|---------|-------------|
+| `/cmd kwork_login` | Login to Kwork (auto-uses saved session) |
+| `/cmd search_kwork_orders keywords="..." min_budget=500` | Search orders |
+| `/cmd get_kwork_orders keywords="python" notify=true` | Get orders + notify |
+| `/cmd submit_kwork_proposal order_url="..." proposal_text="..."` | Submit proposal |
+| `/cmd schedule_kwork_monitoring keywords="..." check_interval_hours=3` | Schedule monitoring |
+
+---
+
 ## Philosophy (BIBLE.md)
 
 | # | Principle | Core Idea |

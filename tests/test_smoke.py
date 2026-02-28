@@ -121,7 +121,7 @@ EXPECTED_TOOLS = [
     "schedule_linkedin_post", "schedule_linkedin_monitoring",
     # Kwork integration
     "kwork_login", "search_kwork_orders", "submit_kwork_proposal",
-    "schedule_kwork_monitoring",
+    "schedule_kwork_monitoring", "get_kwork_orders",
 ]
 
 

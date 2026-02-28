@@ -448,7 +448,7 @@ class OuroborosAgent:
             # Clean up browser if it was used during this task
             try:
                 from ouroboros.tools.browser import cleanup_browser
-                cleanup_browser(self.tools._ctx)
+                cleanup_browser(self.tools._ctx, self.tools._ctx.browser_session_name)
             except Exception:
                 log.debug("Failed to cleanup browser", exc_info=True)
                 pass

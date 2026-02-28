@@ -376,6 +376,8 @@ class BackgroundConsciousness:
         "chat_history",
         # GitHub Issues
         "list_github_issues", "get_github_issue",
+        # Kwork monitoring (continuous order search)
+        "get_kwork_orders", "search_kwork_orders", "kwork_login",
     })
 
     def _build_registry(self) -> "ToolRegistry":
