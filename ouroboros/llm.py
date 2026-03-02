@@ -376,10 +376,10 @@ class LLMClient:
         return response_msg.get("content") or "", usage
 
     def default_model(self) -> str:
-        return os.environ.get("OUROBOROS_MODEL", "google/gemini-3.1-pro-preview")
+        return os.environ.get("OUROBOROS_MODEL", "google/gemini-2.5-pro")
 
     def available_models(self) -> List[str]:
-        main = os.environ.get("OUROBOROS_MODEL", "google/gemini-3.1-pro-preview")
+        main = os.environ.get("OUROBOROS_MODEL", "google/gemini-2.5-pro")
         code = os.environ.get("OUROBOROS_MODEL_CODE", "Qwen3-Coder-Plus")
         light = os.environ.get("OUROBOROS_MODEL_LIGHT", "google/gemini-3-flash")
         models = [main, code, light]
