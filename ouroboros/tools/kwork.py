@@ -187,12 +187,20 @@ def _submit_kwork_proposal_impl(
 
 
 def get_tools() -> List[ToolEntry]:
-    # Keeping the same tool definitions
-    from ouroboros.tools.kwork import _get_kwork_orders_impl, _schedule_kwork_monitoring_impl
     return [
-        ToolEntry("kwork_login", {"name": "kwork_login", "parameters": {"type": "object", "properties": {"force": {"type": "boolean"}}}}, _kwork_login_impl),
-        ToolEntry("search_kwork_orders", {"name": "search_kwork_orders", "parameters": {"type": "object", "properties": {"keywords": {"type": "string"}, "min_budget": {"type": "integer"}}, "required": ["keywords"]}}, _search_kwork_orders_impl),
-        ToolEntry("submit_kwork_proposal", {"name": "submit_kwork_proposal", "parameters": {"type": "object", "properties": {"order_url": {"type": "string"}, "proposal_text": {"type": "string"}}, "required": ["order_url", "proposal_text"]}}, _submit_kwork_proposal_impl),
-        ToolEntry("get_kwork_orders", {"name": "get_kwork_orders", "parameters": {"type": "object", "properties": {"keywords": {"type": "string"}}, "required": ["keywords"]}}, _get_kwork_orders_impl),
-        ToolEntry("schedule_kwork_monitoring", {"name": "schedule_kwork_monitoring", "parameters": {"type": "object", "properties": {"keywords": {"type": "string"}}, "required": ["keywords"]}}, _schedule_kwork_monitoring_impl),
+        ToolEntry("kwork_login", {
+            "name": "kwork_login",
+            "description": "Login to Kwork using stored credentials. Auto-uses saved session cookies.",
+            "parameters": {"type": "object", "properties": {"force": {"type": "boolean", "description": "Force re-login"}}, "required": []},
+        }, _kwork_login_impl),
+        ToolEntry("search_kwork_orders", {
+            "name": "search_kwork_orders",
+            "description": "Search for orders on Kwork. Returns list of available orders matching keywords.",
+            "parameters": {"type": "object", "properties": {"keywords": {"type": "string", "description": "Search keywords"}, "min_budget": {"type": "integer", "description": "Minimum budget in RUB"}}, "required": ["keywords"]},
+        }, _search_kwork_orders_impl),
+        ToolEntry("submit_kwork_proposal", {
+            "name": "submit_kwork_proposal",
+            "description": "Submit a proposal to a Kwork order.",
+            "parameters": {"type": "object", "properties": {"order_url": {"type": "string", "description": "Kwork order URL"}, "proposal_text": {"type": "string", "description": "Proposal message"}, "price": {"type": "integer", "description": "Proposed price in RUB"}}, "required": ["order_url", "proposal_text"]},
+        }, _submit_kwork_proposal_impl),
     ]
