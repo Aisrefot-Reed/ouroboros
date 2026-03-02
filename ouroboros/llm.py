@@ -95,7 +95,10 @@ class LLMClient:
         log.info(f"LLM Routing: model='{model}', tools={len(tools) if tools else 0}")
         
         # 1. Route to Google Gemini
-        if (model.startswith(("google/", "gemini-")) or "gemini" in model.lower()) and self._google_key:
+        if (model.startswith(("google/", "gemini-")) or "gemini" in model.lower()):
+            if not self._google_key:
+                log.error("Gemini model requested but GOOGLE_API_KEY is missing")
+                return {"role": "assistant", "content": "⚠️ Error: GOOGLE_API_KEY is missing. Check your Colab Secrets."}, {"cost": 0}
             log.info("Routing to Google Gemini API")
             return self._chat_gemini(messages, model, tools, max_tokens)
         
