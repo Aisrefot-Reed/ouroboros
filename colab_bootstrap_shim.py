@@ -136,20 +136,11 @@ else:
         shutil.copy(str(pre_commit_sample), str(hooks_source / "pre-push"))
         print("[boot] Installed pre-push hook from sample")
 
-# Now launch launcher with better error handling
+# Install essential libraries before launching
+print("[boot] Installing essential libraries...")
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "google-generativeai", "playwright-stealth"], check=True)
+
+# Now launch launcher via os.execv to stream output directly to Colab
 launcher_path = REPO_DIR / "colab_launcher.py"
 print(f"[boot] Launching {launcher_path}...")
-try:
-    result = subprocess.run(
-        [sys.executable, str(launcher_path)],
-        cwd=str(REPO_DIR),
-        check=True,
-        capture_output=True,
-        text=True
-    )
-    print(f"[boot] Launcher completed successfully")
-except subprocess.CalledProcessError as e:
-    print(f"[boot] Launcher failed with exit code {e.returncode}")
-    print(f"[boot] STDOUT:\n{e.stdout}")
-    print(f"[boot] STDERR:\n{e.stderr}")
-    raise
+os.execv(sys.executable, [sys.executable, str(launcher_path)])

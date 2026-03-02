@@ -16,6 +16,7 @@ import os
 import time
 import json
 import traceback
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 log = logging.getLogger(__name__)
@@ -58,15 +59,16 @@ class LLMClient:
         
         self._openai_client = None
         self._iflow_client = None
-        self._google_gen_model = None
         
-        log.info(f"LLMClient initialized. Keys: iFlow={'SET' if self._iflow_key else 'MISSING'}, Google={'SET' if self._google_key else 'MISSING'}, OpenAI={'SET' if self._openai_key else 'MISSING'}")
+        msg = f"LLMClient init: iFlow={'OK' if self._iflow_key else 'NO'}, Google={'OK' if self._google_key else 'NO'}, OpenAI={'OK' if self._openai_key else 'NO'}"
+        log.info(msg)
+        print(f"[LLM] {msg}", file=sys.stderr)
 
     def _get_iflow_client(self):
         if self._iflow_client is None and self._iflow_key:
             from openai import OpenAI
             self._iflow_client = OpenAI(
-                base_url=self._base_url if hasattr(self, '_base_url') else self._iflow_base_url,
+                base_url=self._iflow_base_url,
                 api_key=self._iflow_key,
                 default_headers={
                     "HTTP-Referer": "https://colab.research.google.com/",
@@ -92,23 +94,21 @@ class LLMClient:
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Single LLM call. Routes to appropriate provider based on model prefix."""
         
-        log.info(f"LLM Routing: model='{model}', tools={len(tools) if tools else 0}")
+        print(f"[LLM] Routing call: model='{model}'", file=sys.stderr)
         
         # 1. Route to Google Gemini
         if (model.startswith(("google/", "gemini-")) or "gemini" in model.lower()):
             if not self._google_key:
-                log.error("Gemini model requested but GOOGLE_API_KEY is missing")
-                return {"role": "assistant", "content": "⚠️ Error: GOOGLE_API_KEY is missing. Check your Colab Secrets."}, {"cost": 0}
-            log.info("Routing to Google Gemini API")
+                err = "⚠️ Error: GOOGLE_API_KEY is missing in Secrets"
+                print(f"[LLM] {err}", file=sys.stderr)
+                return {"role": "assistant", "content": err}, {"cost": 0}
             return self._chat_gemini(messages, model, tools, max_tokens)
         
         # 2. Route to OpenAI
         if (model.startswith(("openai/", "gpt-", "o1-", "o3-")) or "gpt" in model.lower()) and self._openai_key:
-            log.info("Routing to OpenAI API")
             return self._chat_openai(messages, model, tools, max_tokens, reasoning_effort)
 
         # 3. Default to iFlow (FlowAI)
-        log.info("Routing to iFlow (FlowAI) API")
         return self._chat_iflow(messages, model, tools, max_tokens, reasoning_effort, tool_choice)
 
     def _strip_defaults(self, obj: Any) -> Any:
@@ -119,24 +119,41 @@ class LLMClient:
             return [self._strip_defaults(i) for i in obj]
         return obj
 
+    def _format_gemini_content(self, content: Any) -> Any:
+        """Format message content for Gemini API. Handles string and list content."""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    if item.get("type") == "text":
+                        parts.append(item.get("text", ""))
+                    elif item.get("type") == "image_url":
+                        # Image URL needs conversion to bytes/PIL for native library
+                        # For now, just skip or provide a note
+                        parts.append(f"[Image: {item.get('image_url', {}).get('url', 'unknown')}]")
+            return " ".join(parts)
+        return str(content)
+
     def _chat_gemini(
         self,
         messages: List[Dict[str, Any]],
         model: str,
         tools: Optional[List[Dict[str, Any]]] = None,
-        max_tokens: int = 8192
+        max_tokens: int = 8192,
+        _retry_count: int = 0
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         import google.generativeai as genai
-        from google.generativeai.types import content_types
         
         try:
             genai.configure(api_key=self._google_key)
             
-            # Remove 'google/' prefix if present
             gemini_model_id = model.replace("google/", "")
-            log.info(f"Gemini call: model='{gemini_model_id}'")
+            print(f"[LLM] Gemini call: {gemini_model_id} (attempt {_retry_count+1})", file=sys.stderr)
             
-            # Format messages for Gemini
             gemini_history = []
             system_instruction = None
             
@@ -144,12 +161,12 @@ class LLMClient:
                 role = m["role"]
                 content = m["content"]
                 if role == "system":
-                    system_instruction = content
+                    system_instruction = self._format_gemini_content(content)
                 elif role == "user":
-                    gemini_history.append({"role": "user", "parts": [content]})
+                    gemini_history.append({"role": "user", "parts": [self._format_gemini_content(content)]})
                 elif role == "assistant":
                     if m.get("tool_calls"):
-                        parts = [{"text": content or ""}]
+                        parts = [{"text": self._format_gemini_content(content) or ""}]
                         for tc in m["tool_calls"]:
                             parts.append({
                                 "function_call": {
@@ -159,7 +176,7 @@ class LLMClient:
                             })
                         gemini_history.append({"role": "model", "parts": parts})
                     else:
-                        gemini_history.append({"role": "model", "parts": [content or ""]})
+                        gemini_history.append({"role": "model", "parts": [self._format_gemini_content(content) or ""]})
                 elif role == "tool":
                     gemini_history.append({
                         "role": "user",
@@ -171,7 +188,6 @@ class LLMClient:
                         }]
                     })
 
-            # Set up tools for Gemini (strip 'default' field as Google doesn't support it)
             gemini_tools = []
             if tools:
                 gemini_tool_list = []
@@ -191,17 +207,15 @@ class LLMClient:
             )
             
             if not gemini_history:
-                return {"role": "assistant", "content": "⚠️ Gemini Error: Empty message history"}, {"cost": 0}
+                # If history is empty, create a dummy one
+                gemini_history = [{"role": "user", "parts": ["Hello"]}]
 
             last_msg = gemini_history.pop()
-            
             chat = gen_model.start_chat(history=gemini_history)
             response = chat.send_message(last_msg["parts"], generation_config={"max_output_tokens": max_tokens})
             
-            # Robust extraction of content and tool calls
             if not response.candidates:
-                log.error("Gemini Error: No candidates in response")
-                return {"role": "assistant", "content": f"⚠️ Gemini Error: No response candidates. Safety filter or block?"}, {"cost": 0}
+                return {"role": "assistant", "content": "⚠️ Gemini Error: No response candidates"}, {"cost": 0}
 
             candidate = response.candidates[0]
             res_content = ""
@@ -230,28 +244,23 @@ class LLMClient:
                 "total_tokens": response.usage_metadata.total_token_count,
                 "cost": 0.0
             }
-            
-            log.info(f"Gemini response: content_len={len(res_content)}, tool_calls={len(tool_calls)}")
             return res_msg, usage
             
         except Exception as e:
             err_str = str(e)
-            if "ResourceExhausted" in err_str or "429" in err_str:
-                # Attempt to parse "Please retry in X.Xs"
+            if ("ResourceExhausted" in err_str or "429" in err_str) and _retry_count < 2:
                 import re
-                wait_time = 10.0 # Default
+                wait_time = 10.0
                 match = re.search(r"retry in ([\d.]+)s", err_str)
                 if match:
-                    wait_time = float(match.group(1)) + 1.0 # Add buffer
-                
-                log.warning(f"Gemini Quota Exceeded. Sleeping {wait_time}s and retrying...")
+                    wait_time = float(match.group(1)) + 1.0
+                print(f"[LLM] Gemini Quota. Waiting {wait_time}s...", file=sys.stderr)
                 time.sleep(wait_time)
-                # Retry once
-                return self._chat_gemini(messages, model, tools, max_tokens)
+                return self._chat_gemini(messages, model, tools, max_tokens, _retry_count + 1)
 
             tb = traceback.format_exc()
-            log.error(f"Gemini API Error: {e}\n{tb}")
-            return {"role": "assistant", "content": f"⚠️ Gemini API Error: {repr(e)}"}, {"cost": 0}
+            print(f"[LLM] Gemini Error: {e}", file=sys.stderr)
+            return {"role": "assistant", "content": f"⚠️ Gemini API Error: {err_str}"}, {"cost": 0}
 
 
     def _chat_iflow(self, messages, model, tools, max_tokens, reasoning_effort, tool_choice):
@@ -260,12 +269,7 @@ class LLMClient:
             return {"role": "assistant", "content": "⚠️ Error: IFLOW_API_KEY not found."}, {}
             
         try:
-            effort = normalize_reasoning_effort(reasoning_effort)
-            kwargs = {
-                "model": model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-            }
+            kwargs = {"model": model, "messages": messages, "max_tokens": max_tokens}
             if tools:
                 kwargs["tools"] = tools
                 kwargs["tool_choice"] = tool_choice
@@ -273,20 +277,14 @@ class LLMClient:
             resp = client.chat.completions.create(**kwargs)
             resp_dict = resp.model_dump()
             usage = resp_dict.get("usage") or {}
-            choices = resp_dict.get("choices") or [{}]
-            msg = (choices[0] if choices else {}).get("message") or {}
+            msg = (resp_dict.get("choices") or [{}])[0].get("message") or {}
             
-            # Cost estimate if missing
             if not usage.get("cost"):
-                # Simple estimate for Qwen3 Coder Plus
-                in_p = 0.5 / 1_000_000
-                out_p = 1.5 / 1_000_000
-                usage["cost"] = (usage.get("prompt_tokens", 0) * in_p) + (usage.get("completion_tokens", 0) * out_p)
+                usage["cost"] = (usage.get("prompt_tokens", 0) * 0.5 + usage.get("completion_tokens", 0) * 1.5) / 1_000_000
 
             return msg, usage
         except Exception as e:
-            tb = traceback.format_exc()
-            log.error(f"iFlow API Error: {e}\n{tb}")
+            print(f"[LLM] iFlow Error: {e}", file=sys.stderr)
             return {"role": "assistant", "content": f"⚠️ iFlow API Error: {repr(e)}"}, {"cost": 0}
 
     def _chat_openai(self, messages, model, tools, max_tokens, reasoning_effort):
@@ -295,50 +293,36 @@ class LLMClient:
             return {"role": "assistant", "content": "⚠️ Error: OPENAI_API_KEY not found."}, {}
             
         try:
-            # Remove 'openai/' prefix if present
             openai_model_id = model.replace("openai/", "")
-            log.info(f"OpenAI call: model='{openai_model_id}'")
-            
-            kwargs = {
-                "model": openai_model_id,
-                "messages": messages,
-                "max_tokens": max_tokens,
-            }
+            kwargs = {"model": openai_model_id, "messages": messages, "max_tokens": max_tokens}
             if tools:
                 kwargs["tools"] = tools
                 
             resp = client.chat.completions.create(**kwargs)
             resp_dict = resp.model_dump()
             usage = resp_dict.get("usage") or {}
-            choices = resp_dict.get("choices") or [{}]
-            msg = (choices[0] if choices else {}).get("message") or {}
-            
-            log.info(f"OpenAI response: content_len={len(msg.get('content') or '')}, tool_calls={len(msg.get('tool_calls') or [])}")
+            msg = (resp_dict.get("choices") or [{}])[0].get("message") or {}
             return msg, usage
         except Exception as e:
-            tb = traceback.format_exc()
-            log.error(f"OpenAI API Error: {e}\n{tb}")
+            print(f"[LLM] OpenAI Error: {e}", file=sys.stderr)
             return {"role": "assistant", "content": f"⚠️ OpenAI API Error: {repr(e)}"}, {"cost": 0}
 
     def vision_query(
         self,
         prompt: str,
         images: List[Dict[str, Any]],
-        model: str = "google/gemini-2.0-pro-exp-02-05", # Default to Gemini for vision
+        model: str = "gemini-1.5-pro",
         max_tokens: int = 1024,
         reasoning_effort: str = "low",
     ) -> Tuple[str, Dict[str, Any]]:
-        # If it's Gemini, use native vision support
-        if model.startswith(("google/", "gemini-")):
+        if model.startswith(("google/", "gemini-")) or "gemini" in model.lower():
             import google.generativeai as genai
             try:
                 genai.configure(api_key=self._google_key)
                 gemini_model_id = model.replace("google/", "")
-                
                 parts = [prompt]
                 for img in images:
                     if "url" in img:
-                        # In Gemini, URLs need to be downloaded or passed as file refs
                         import requests
                         from PIL import Image
                         from io import BytesIO
@@ -363,7 +347,6 @@ class LLMClient:
             except Exception as e:
                 return f"⚠️ Vision Error (Gemini): {repr(e)}", {"cost": 0}
 
-        # Fallback to OpenAI vision (if iFlow supports it)
         messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
         for img in images:
             if "url" in img:
