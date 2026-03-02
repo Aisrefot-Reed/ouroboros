@@ -147,11 +147,16 @@ class LLMClient:
         _retry_count: int = 0
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         import google.generativeai as genai
+        from google.generativeai.types import HarmCategory, HarmBlockThreshold
         
         try:
             genai.configure(api_key=self._google_key)
             
+            # Ensure model name is correct
             gemini_model_id = model.replace("google/", "")
+            if not gemini_model_id.startswith("models/"):
+                gemini_model_id = f"models/{gemini_model_id}"
+                
             print(f"[LLM] Gemini call: {gemini_model_id} (attempt {_retry_count+1})", file=sys.stderr)
             
             gemini_history = []
@@ -200,14 +205,22 @@ class LLMClient:
                     })
                 gemini_tools = [{"function_declarations": gemini_tool_list}]
 
+            # Disable safety filters to prevent empty responses
+            safety_settings = {
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            }
+
             gen_model = genai.GenerativeModel(
                 model_name=gemini_model_id,
                 system_instruction=system_instruction,
-                tools=gemini_tools
+                tools=gemini_tools,
+                safety_settings=safety_settings
             )
             
             if not gemini_history:
-                # If history is empty, create a dummy one
                 gemini_history = [{"role": "user", "parts": ["Hello"]}]
 
             last_msg = gemini_history.pop()

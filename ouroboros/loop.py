@@ -684,7 +684,7 @@ def run_llm_loop(
                 # Configurable fallback priority list (Bible P3: no hardcoded behavior)
                 fallback_list_raw = os.environ.get(
                     "OUROBOROS_MODEL_FALLBACK_LIST",
-                    "gemini-2.0-flash,gemini-2.0-flash-lite,openai/o3,anthropic/claude-sonnet-4.6"
+                    "gemini-2.0-flash,gemini-2.0-flash-lite,Qwen3-Coder-Plus,openai/o3,anthropic/claude-sonnet-4.6"
                 )
                 fallback_candidates = [m.strip() for m in fallback_list_raw.split(",") if m.strip()]
                 fallback_model = None
