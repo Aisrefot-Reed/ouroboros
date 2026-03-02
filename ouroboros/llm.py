@@ -232,6 +232,20 @@ class LLMClient:
             return res_msg, usage
             
         except Exception as e:
+            err_str = str(e)
+            if "ResourceExhausted" in err_str or "429" in err_str:
+                # Attempt to parse "Please retry in X.Xs"
+                import re
+                wait_time = 10.0 # Default
+                match = re.search(r"retry in ([\d.]+)s", err_str)
+                if match:
+                    wait_time = float(match.group(1)) + 1.0 # Add buffer
+                
+                log.warning(f"Gemini Quota Exceeded. Sleeping {wait_time}s and retrying...")
+                time.sleep(wait_time)
+                # Retry once
+                return self._chat_gemini(messages, model, tools, max_tokens)
+
             tb = traceback.format_exc()
             log.error(f"Gemini API Error: {e}\n{tb}")
             return {"role": "assistant", "content": f"⚠️ Gemini API Error: {repr(e)}"}, {"cost": 0}
@@ -359,11 +373,11 @@ class LLMClient:
         return response_msg.get("content") or "", usage
 
     def default_model(self) -> str:
-        return os.environ.get("OUROBOROS_MODEL", "google/gemini-3.1-pro")
+        return os.environ.get("OUROBOROS_MODEL", "google/gemini-1.5-pro")
 
     def available_models(self) -> List[str]:
-        main = os.environ.get("OUROBOROS_MODEL", "google/gemini-3.1-pro")
+        main = os.environ.get("OUROBOROS_MODEL", "google/gemini-1.5-pro")
         code = os.environ.get("OUROBOROS_MODEL_CODE", "Qwen3-Coder-Plus")
-        light = os.environ.get("OUROBOROS_MODEL_LIGHT", "google/gemini-3-flash")
+        light = os.environ.get("OUROBOROS_MODEL_LIGHT", "google/gemini-1.5-flash")
         models = [main, code, light]
         return list(set(models))
