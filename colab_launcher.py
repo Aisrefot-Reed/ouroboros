@@ -97,10 +97,10 @@ GITHUB_USER = get_cfg("GITHUB_USER", default=None)
 GITHUB_REPO = get_cfg("GITHUB_REPO", default=None)
 assert GITHUB_USER and str(GITHUB_USER).strip(), "GITHUB_USER not set. Add it to your config cell (see README)."
 assert GITHUB_REPO and str(GITHUB_REPO).strip(), "GITHUB_REPO not set. Add it to your config cell (see README)."
-MAX_WORKERS = int(get_cfg("OUROBOROS_MAX_WORKERS", default="5") or "5")
-MODEL_MAIN = get_cfg("OUROBOROS_MODEL", default="Qwen3-Coder-Plus")
+MAX_WORKERS = _parse_int_cfg(get_cfg("OUROBOROS_MAX_WORKERS", default="5"), default=5, minimum=1)
+MODEL_MAIN = get_cfg("OUROBOROS_MODEL", default="google/gemini-3.1-pro")
 MODEL_CODE = get_cfg("OUROBOROS_MODEL_CODE", default="Qwen3-Coder-Plus")
-MODEL_LIGHT = get_cfg("OUROBOROS_MODEL_LIGHT", default="Qwen3-Coder-30B-A3B-Instruct")
+MODEL_LIGHT = get_cfg("OUROBOROS_MODEL_LIGHT", default="google/gemini-3-flash")
 
 BUDGET_REPORT_EVERY_MESSAGES = 10
 SOFT_TIMEOUT_SEC = max(60, int(get_cfg("OUROBOROS_SOFT_TIMEOUT_SEC", default="600") or "600"))
