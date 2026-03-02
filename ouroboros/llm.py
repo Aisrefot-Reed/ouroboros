@@ -108,6 +108,14 @@ class LLMClient:
         log.info("Routing to iFlow (FlowAI) API")
         return self._chat_iflow(messages, model, tools, max_tokens, reasoning_effort, tool_choice)
 
+    def _strip_defaults(self, obj: Any) -> Any:
+        """Recursively remove 'default' fields from JSON schema for Gemini compatibility."""
+        if isinstance(obj, dict):
+            return {k: self._strip_defaults(v) for k, v in obj.items() if k != 'default'}
+        elif isinstance(obj, list):
+            return [self._strip_defaults(i) for i in obj]
+        return obj
+
     def _chat_gemini(
         self,
         messages: List[Dict[str, Any]],
@@ -160,7 +168,7 @@ class LLMClient:
                         }]
                     })
 
-            # Set up tools for Gemini
+            # Set up tools for Gemini (strip 'default' field as Google doesn't support it)
             gemini_tools = []
             if tools:
                 gemini_tool_list = []
@@ -169,7 +177,7 @@ class LLMClient:
                     gemini_tool_list.append({
                         "name": func["name"],
                         "description": func["description"],
-                        "parameters": func["parameters"]
+                        "parameters": self._strip_defaults(func["parameters"])
                     })
                 gemini_tools = [{"function_declarations": gemini_tool_list}]
 
