@@ -90,11 +90,11 @@ class LLMClient:
         """Single LLM call. Routes to appropriate provider based on model prefix."""
         
         # 1. Route to Google Gemini
-        if model.startswith(("google/", "gemini-")) and self._google_key:
+        if (model.startswith(("google/", "gemini-")) or "gemini" in model.lower()) and self._google_key:
             return self._chat_gemini(messages, model, tools, max_tokens)
         
-        # 2. Route to OpenAI (if not iFlow)
-        if model.startswith(("gpt-", "o1-", "o3-")) and self._openai_key:
+        # 2. Route to OpenAI
+        if (model.startswith(("openai/", "gpt-", "o1-", "o3-")) or "gpt" in model.lower()) and self._openai_key:
             return self._chat_openai(messages, model, tools, max_tokens, reasoning_effort)
 
         # 3. Default to iFlow (FlowAI)
@@ -128,7 +128,6 @@ class LLMClient:
                 gemini_history.append({"role": "user", "parts": [content]})
             elif role == "assistant":
                 if m.get("tool_calls"):
-                    # Tool calls in Gemini are part of the conversation
                     parts = [{"text": content or ""}]
                     for tc in m["tool_calls"]:
                         parts.append({
@@ -170,20 +169,20 @@ class LLMClient:
             tools=gemini_tools
         )
         
-        # Gemini expects the last message to be user role if we're not using chat history
-        # but Ouroboros sends full history every time.
         last_msg = gemini_history.pop()
         
-        # Send request
         try:
             chat = gen_model.start_chat(history=gemini_history)
             response = chat.send_message(last_msg["parts"], generation_config={"max_output_tokens": max_tokens})
             
-            # Format back to OpenAI-style response
-            res_msg = {"role": "assistant", "content": response.text if response.parts else None}
-            
+            # Robust extraction of content and tool calls
+            candidate = response.candidates[0]
+            res_content = ""
             tool_calls = []
-            for part in response.parts:
+            
+            for part in candidate.content.parts:
+                if hasattr(part, 'text') and part.text:
+                    res_content += part.text
                 if fn := part.function_call:
                     tool_calls.append({
                         "id": f"call_{int(time.time())}_{fn.name}",
@@ -194,22 +193,23 @@ class LLMClient:
                         }
                     })
             
+            res_msg = {"role": "assistant", "content": res_content or None}
             if tool_calls:
                 res_msg["tool_calls"] = tool_calls
                 
-            # Usage and cost (Gemini cost estimation)
             usage = {
                 "prompt_tokens": response.usage_metadata.prompt_token_count,
                 "completion_tokens": response.usage_metadata.candidates_token_count,
                 "total_tokens": response.usage_metadata.total_token_count,
-                "cost": 0.0 # Free for Google Premium / AI Studio within limits or estimated
+                "cost": 0.0
             }
             
             return res_msg, usage
             
         except Exception as e:
             log.error(f"Gemini API Error: {e}")
-            raise
+            return {"role": "assistant", "content": f"⚠️ Gemini API Error: {repr(e)}"}, {"cost": 0}
+
 
     def _chat_iflow(self, messages, model, tools, max_tokens, reasoning_effort, tool_choice):
         client = self._get_iflow_client()

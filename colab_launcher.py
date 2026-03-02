@@ -92,6 +92,8 @@ except Exception as e:
     TOTAL_BUDGET_LIMIT = 0.0
 
 OPENAI_API_KEY = get_secret("OPENAI_API_KEY", default="")
+GOOGLE_API_KEY = get_secret("GOOGLE_API_KEY", default="")
+TAVILY_API_KEY = get_secret("TAVILY_API_KEY", default="")
 ANTHROPIC_API_KEY = get_secret("ANTHROPIC_API_KEY", default="")
 GITHUB_USER = get_cfg("GITHUB_USER", default=None)
 GITHUB_REPO = get_cfg("GITHUB_REPO", default=None)
@@ -118,6 +120,8 @@ DIAG_SLOW_CYCLE_SEC = _parse_int_cfg(
 
 os.environ["IFLOW_API_KEY"] = str(IFLOW_API_KEY)
 os.environ["OPENAI_API_KEY"] = str(OPENAI_API_KEY or "")
+os.environ["GOOGLE_API_KEY"] = str(GOOGLE_API_KEY or "")
+os.environ["TAVILY_API_KEY"] = str(TAVILY_API_KEY or "")
 os.environ["ANTHROPIC_API_KEY"] = str(ANTHROPIC_API_KEY or "")
 os.environ["GITHUB_USER"] = str(GITHUB_USER)
 os.environ["GITHUB_REPO"] = str(GITHUB_REPO)
