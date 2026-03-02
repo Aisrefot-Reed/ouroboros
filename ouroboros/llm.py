@@ -248,15 +248,20 @@ class LLMClient:
             
         except Exception as e:
             err_str = str(e)
-            if ("ResourceExhausted" in err_str or "429" in err_str) and _retry_count < 2:
-                import re
-                wait_time = 10.0
-                match = re.search(r"retry in ([\d.]+)s", err_str)
-                if match:
-                    wait_time = float(match.group(1)) + 1.0
-                print(f"[LLM] Gemini Quota. Waiting {wait_time}s...", file=sys.stderr)
-                time.sleep(wait_time)
-                return self._chat_gemini(messages, model, tools, max_tokens, _retry_count + 1)
+            if ("ResourceExhausted" in err_str or "429" in err_str):
+                if _retry_count < 1:
+                    import re
+                    wait_time = 10.0
+                    match = re.search(r"retry in ([\d.]+)s", err_str)
+                    if match:
+                        wait_time = float(match.group(1)) + 1.0
+                    print(f"[LLM] Gemini Quota. Waiting {wait_time}s...", file=sys.stderr)
+                    time.sleep(wait_time)
+                    return self._chat_gemini(messages, model, tools, max_tokens, _retry_count + 1)
+                else:
+                    # After retry failed, return None to trigger Ouroboros fallback logic
+                    print(f"[LLM] Gemini Quota exhausted after retry. Triggering fallback.", file=sys.stderr)
+                    return None, {}
 
             tb = traceback.format_exc()
             print(f"[LLM] Gemini Error: {e}", file=sys.stderr)

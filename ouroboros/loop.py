@@ -38,6 +38,8 @@ _MODEL_PRICING_STATIC = {
     "openai/gpt-4.1": (2.0, 0.50, 8.0),
     "openai/gpt-5.2": (1.75, 0.175, 14.0),
     "openai/gpt-5.2-codex": (1.75, 0.175, 14.0),
+    "gemini-1.5-pro": (1.25, 0.125, 10.0),
+    "gemini-1.5-flash": (0.10, 0.01, 0.40),
     "gemini-2.5-pro": (1.25, 0.125, 10.0),
     "gemini-3.1-pro-preview": (1.25, 0.125, 10.0),
     "gemini-3-flash": (0.10, 0.01, 0.40),
@@ -681,7 +683,7 @@ def run_llm_loop(
                 # Configurable fallback priority list (Bible P3: no hardcoded behavior)
                 fallback_list_raw = os.environ.get(
                     "OUROBOROS_MODEL_FALLBACK_LIST",
-                    "gemini-2.5-pro,openai/o3,anthropic/claude-sonnet-4.6"
+                    "gemini-1.5-flash,gemini-1.5-pro,openai/o3,anthropic/claude-sonnet-4.6"
                 )
                 fallback_candidates = [m.strip() for m in fallback_list_raw.split(",") if m.strip()]
                 fallback_model = None
